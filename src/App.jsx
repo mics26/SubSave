@@ -1,3 +1,4 @@
+import { useState, useRef } from 'react';
 import {
   AppBar,
   Avatar,
@@ -8,7 +9,14 @@ import {
   Chip,
   Container,
   CssBaseline,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
   Divider,
+  FormHelperText,
+  MenuItem,
+  TextField,
   ThemeProvider,
   Toolbar,
   Typography,
@@ -18,6 +26,8 @@ import {
   AccountBalanceWalletOutlined,
   AddRounded,
   AutorenewRounded,
+  CloudUploadOutlined,
+  DeleteOutlineRounded,
   EventRepeatOutlined,
   SubscriptionsOutlined,
 } from '@mui/icons-material';
@@ -51,7 +61,7 @@ const greenTheme = createTheme({
   },
 });
 
-const SAMPLE_SUBSCRIPTIONS = [
+const INITIAL_SUBSCRIPTIONS = [
   {
     id: 'sub-1',
     name: 'Spotify Premium',
@@ -59,6 +69,7 @@ const SAMPLE_SUBSCRIPTIONS = [
     cost: 149.0,
     billingCycle: 'Monthly',
     nextRenewal: 'Nov 05, 2026',
+    icon: null,
   },
   {
     id: 'sub-2',
@@ -67,6 +78,7 @@ const SAMPLE_SUBSCRIPTIONS = [
     cost: 399.0,
     billingCycle: 'Monthly',
     nextRenewal: 'Nov 12, 2026',
+    icon: null,
   },
   {
     id: 'sub-3',
@@ -75,6 +87,7 @@ const SAMPLE_SUBSCRIPTIONS = [
     cost: 230.0,
     billingCycle: 'Monthly',
     nextRenewal: 'Nov 18, 2026',
+    icon: null,
   },
   {
     id: 'sub-4',
@@ -83,16 +96,150 @@ const SAMPLE_SUBSCRIPTIONS = [
     cost: 89.0,
     billingCycle: 'Monthly',
     nextRenewal: 'Nov 24, 2026',
+    icon: null,
   },
 ];
 
-function App() {
-  const totalMonthly = SAMPLE_SUBSCRIPTIONS.reduce(
-    (sum, item) => sum + item.cost,
-    0
-  );
+const INITIAL_FORM_STATE = {
+  name: '',
+  category: 'General',
+  cost: '',
+  billingCycle: 'Monthly',
+  nextRenewal: '',
+  icon: null,
+  iconName: '',
+};
 
-  const nextUpcoming = SAMPLE_SUBSCRIPTIONS[0];
+function formatRenewalDate(dateString) {
+  const [year, month, day] = dateString.split('-').map(Number);
+  const date = new Date(year, month - 1, day);
+  return date.toLocaleDateString('en-US', {
+    month: 'short',
+    day: '2-digit',
+    year: 'numeric',
+  });
+}
+
+function App() {
+  const [subscriptions, setSubscriptions] = useState(INITIAL_SUBSCRIPTIONS);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [formData, setFormData] = useState(INITIAL_FORM_STATE);
+  const [errors, setErrors] = useState({});
+  const fileInputRef = useRef(null);
+
+  // Calculate total monthly expense (normalizes Yearly subscriptions to Monthly cost)
+  const totalMonthly = subscriptions.reduce((sum, item) => {
+    const monthlyEquivalent =
+      item.billingCycle === 'Yearly' ? item.cost / 12 : item.cost;
+    return sum + monthlyEquivalent;
+  }, 0);
+
+  const nextUpcoming = subscriptions[0];
+
+  const resetForm = () => {
+    setFormData(INITIAL_FORM_STATE);
+    setErrors({});
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const handleOpenModal = () => {
+    resetForm();
+    setIsModalOpen(true);
+  };
+
+  const handleCloseModal = () => {
+    resetForm();
+    setIsModalOpen(false);
+  };
+
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setFormData((prev) => ({ ...prev, [name]: value }));
+    if (errors[name]) {
+      setErrors((prev) => ({ ...prev, [name]: '' }));
+    }
+  };
+
+  const handleIconUpload = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const validTypes = ['image/png', 'image/jpeg'];
+    if (!validTypes.includes(file.type)) {
+      setErrors((prev) => ({
+        ...prev,
+        icon: 'Only PNG and JPEG image formats are supported.',
+      }));
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setFormData((prev) => ({
+        ...prev,
+        icon: reader.result,
+        iconName: file.name,
+      }));
+      setErrors((prev) => ({ ...prev, icon: '' }));
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleClearIcon = () => {
+    setFormData((prev) => ({ ...prev, icon: null, iconName: '' }));
+    setErrors((prev) => ({ ...prev, icon: '' }));
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const validateForm = () => {
+    const newErrors = {};
+
+    if (!formData.name.trim()) {
+      newErrors.name = 'Subscription name is required.';
+    }
+
+    const parsedCost = Number(formData.cost);
+    if (!formData.cost || Number.isNaN(parsedCost) || parsedCost <= 0) {
+      newErrors.cost = 'Please enter a valid cost greater than 0.';
+    }
+
+    if (!formData.billingCycle) {
+      newErrors.billingCycle = 'Please select a billing cycle.';
+    }
+
+    if (!formData.nextRenewal) {
+      newErrors.nextRenewal = 'Next renewal date is required.';
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (!validateForm()) return;
+
+    const newSubscription = {
+      id: `sub-${Date.now()}`,
+      name: formData.name.trim(),
+      category: formData.category.trim() || 'General',
+      cost: Number(formData.cost),
+      billingCycle: formData.billingCycle,
+      nextRenewal: formatRenewalDate(formData.nextRenewal),
+      icon: formData.icon || null,
+    };
+
+    setSubscriptions((prev) => [...prev, newSubscription]);
+    resetForm();
+    setIsModalOpen(false);
+  };
 
   return (
     <ThemeProvider theme={greenTheme}>
@@ -155,6 +302,7 @@ function App() {
             color="primary"
             startIcon={<AddRounded />}
             disableElevation
+            onClick={handleOpenModal}
           >
             Add Subscription
           </Button>
@@ -197,7 +345,7 @@ function App() {
                 <SubscriptionsOutlined sx={{ color: 'primary.main', fontSize: 20 }} />
               </Box>
               <Typography variant="h4" sx={{ fontWeight: 700, my: 0.5 }}>
-                {SAMPLE_SUBSCRIPTIONS.length}
+                {subscriptions.length}
               </Typography>
               <Typography variant="caption" color="text.secondary">
                 All services currently active
@@ -214,10 +362,12 @@ function App() {
                 <EventRepeatOutlined sx={{ color: 'primary.main', fontSize: 20 }} />
               </Box>
               <Typography variant="h5" sx={{ fontWeight: 700, my: 0.8 }}>
-                {nextUpcoming.nextRenewal}
+                {nextUpcoming ? nextUpcoming.nextRenewal : 'N/A'}
               </Typography>
               <Typography variant="caption" color="text.secondary">
-                {nextUpcoming.name} (₱{nextUpcoming.cost.toFixed(2)})
+                {nextUpcoming
+                  ? `${nextUpcoming.name} (₱${nextUpcoming.cost.toFixed(2)})`
+                  : 'No upcoming renewals'}
               </Typography>
             </CardContent>
           </Card>
@@ -236,7 +386,7 @@ function App() {
             Your Subscriptions
           </Typography>
           <Chip
-            label={`${SAMPLE_SUBSCRIPTIONS.length} Active`}
+            label={`${subscriptions.length} Active`}
             size="small"
             sx={{
               bgcolor: 'primary.light',
@@ -247,7 +397,7 @@ function App() {
         </Box>
 
         <div className="subscription-grid">
-          {SAMPLE_SUBSCRIPTIONS.map((sub) => (
+          {subscriptions.map((sub) => (
             <Card
               key={sub.id}
               variant="outlined"
@@ -267,6 +417,8 @@ function App() {
                 >
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
                     <Avatar
+                      src={sub.icon || undefined}
+                      alt={sub.name}
                       variant="rounded"
                       sx={{
                         bgcolor: 'primary.light',
@@ -274,7 +426,7 @@ function App() {
                         fontWeight: 700,
                       }}
                     >
-                      {sub.name.charAt(0)}
+                      {sub.name.charAt(0).toUpperCase()}
                     </Avatar>
                     <Box>
                       <Typography variant="subtitle1" sx={{ fontWeight: 600, lineHeight: 1.3 }}>
@@ -325,6 +477,178 @@ function App() {
           ))}
         </div>
       </Container>
+
+      {/* Add Subscription Dialog Form */}
+      <Dialog
+        open={isModalOpen}
+        onClose={handleCloseModal}
+        fullWidth
+        maxWidth="xs"
+      >
+        <DialogTitle sx={{ fontWeight: 700, pb: 1 }}>
+          Add New Subscription
+        </DialogTitle>
+        <Box component="form" onSubmit={handleSubmit} noValidate>
+          <DialogContent
+            sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}
+          >
+            <TextField
+              label="Subscription Name"
+              name="name"
+              placeholder="e.g., Canva Pro"
+              value={formData.name}
+              onChange={handleInputChange}
+              error={Boolean(errors.name)}
+              helperText={errors.name}
+              size="small"
+              fullWidth
+              required
+            />
+
+            <TextField
+              label="Category"
+              name="category"
+              select
+              value={formData.category}
+              onChange={handleInputChange}
+              size="small"
+              fullWidth
+            >
+              <MenuItem value="Entertainment">Entertainment</MenuItem>
+              <MenuItem value="Music & Audio">Music & Audio</MenuItem>
+              <MenuItem value="Developer Tools">Developer Tools</MenuItem>
+              <MenuItem value="Cloud Storage">Cloud Storage</MenuItem>
+              <MenuItem value="Productivity">Productivity</MenuItem>
+              <MenuItem value="General">General</MenuItem>
+            </TextField>
+
+            <Box sx={{ display: 'flex', gap: 1.5 }}>
+              <TextField
+                label="Cost (₱)"
+                name="cost"
+                type="number"
+                placeholder="0.00"
+                value={formData.cost}
+                onChange={handleInputChange}
+                error={Boolean(errors.cost)}
+                helperText={errors.cost}
+                size="small"
+                fullWidth
+                required
+                slotProps={{ htmlInput: { min: '0', step: '0.01' } }}
+              />
+
+              <TextField
+                label="Billing Cycle"
+                name="billingCycle"
+                select
+                value={formData.billingCycle}
+                onChange={handleInputChange}
+                error={Boolean(errors.billingCycle)}
+                helperText={errors.billingCycle}
+                size="small"
+                fullWidth
+                required
+              >
+                <MenuItem value="Monthly">Monthly</MenuItem>
+                <MenuItem value="Yearly">Yearly</MenuItem>
+              </TextField>
+            </Box>
+
+            <TextField
+              label="Next Renewal Date"
+              name="nextRenewal"
+              type="date"
+              value={formData.nextRenewal}
+              onChange={handleInputChange}
+              error={Boolean(errors.nextRenewal)}
+              helperText={errors.nextRenewal}
+              size="small"
+              fullWidth
+              required
+              slotProps={{ inputLabel: { shrink: true } }}
+            />
+
+            {/* Custom Icon Upload (PNG/JPEG) with Default Placeholder Fallback */}
+            <Box>
+              <Typography
+                variant="caption"
+                color="text.secondary"
+                sx={{ display: 'block', mb: 0.75, fontWeight: 500 }}
+              >
+                Custom Icon (Optional — PNG or JPEG)
+              </Typography>
+
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                <Avatar
+                  src={formData.icon || undefined}
+                  variant="rounded"
+                  sx={{
+                    width: 42,
+                    height: 42,
+                    bgcolor: 'primary.light',
+                    color: 'primary.dark',
+                    fontWeight: 700,
+                    border: '1px solid #a7f3d0',
+                  }}
+                >
+                  {formData.name ? formData.name.charAt(0).toUpperCase() : '?'}
+                </Avatar>
+
+                <Button
+                  component="label"
+                  variant="outlined"
+                  size="small"
+                  startIcon={<CloudUploadOutlined />}
+                  sx={{ flexGrow: 1 }}
+                >
+                  {formData.iconName ? 'Change Icon' : 'Upload PNG/JPEG'}
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/png, image/jpeg"
+                    hidden
+                    onChange={handleIconUpload}
+                  />
+                </Button>
+
+                {formData.icon && (
+                  <Button
+                    color="error"
+                    size="small"
+                    onClick={handleClearIcon}
+                    sx={{ minWidth: 'auto', p: 0.75 }}
+                    aria-label="Remove uploaded icon"
+                  >
+                    <DeleteOutlineRounded fontSize="small" />
+                  </Button>
+                )}
+              </Box>
+
+              {formData.iconName && !errors.icon && (
+                <FormHelperText sx={{ color: 'primary.dark', mt: 0.5 }}>
+                  Selected: {formData.iconName}
+                </FormHelperText>
+              )}
+
+              {errors.icon && (
+                <FormHelperText error sx={{ mt: 0.5 }}>
+                  {errors.icon}
+                </FormHelperText>
+              )}
+            </Box>
+          </DialogContent>
+
+          <DialogActions sx={{ px: 3, pb: 2.5 }}>
+            <Button onClick={handleCloseModal} sx={{ color: 'text.secondary' }}>
+              Cancel
+            </Button>
+            <Button type="submit" variant="contained" disableElevation>
+              Save Subscription
+            </Button>
+          </DialogActions>
+        </Box>
+      </Dialog>
     </ThemeProvider>
   );
 }
