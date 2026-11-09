@@ -8,9 +8,11 @@ SubSave is a browser application built with React and JavaScript using Vite.
 styles. Vite serves the app during development and builds static assets into
 `dist/` for production. Oxlint checks the JavaScript and JSX source.
 
-There are currently no network API calls, backend services, external fonts,
+There are currently no network API calls, backend services,
 server authentication, or persisted subscription records. The dashboard uses
-sample subscriptions. No environment variables are required to start the app.
+initial sample subscriptions and supports additions in React state. Google Fonts
+provides DM Sans and Bricolage Grotesque, with system fallbacks when unavailable.
+No environment variables are required to start the app.
 
 ## Demo accounts (issue #7)
 
@@ -36,17 +38,26 @@ these flows demonstrate behavior and must not be treated as production security.
 `npm test` runs the account behavior tests using Node's built-in test runner.
 See [account verification](../tests/accounts.md) for manual browser checks.
 
-## Planned dashboard layout
+## Dashboard UI
 
-The existing dashboard plan is retained for APP-02:
+`src/dashboard/Dashboard.jsx` adapts the supplied HTML mockup to the app's React
+state and existing account/subscription forms. `dashboard.css` handles the
+responsive cards, sidebar, category chart, and timeline. `dashboardModel.js`
+calculates summaries without mutating the subscription records:
 
-- Monthly subscription expense overview.
-- Subscription cards displaying active services.
-- Upcoming renewal date information.
-- Controls for adding, editing, and deleting subscriptions.
+- Yearly costs are divided by 12 for monthly expenses and category totals.
+- The annual estimate is 12 times normalized monthly spending.
+- Renewal dates use local calendar days and the current date, not a fixed preview
+  date. Past dates remain overdue; the next renewal and timeline include today
+  and future dates only. No billing dates are automatically advanced.
+- Badges are red for overdue dates and renewals within three days, amber for
+  four to seven days, and green for later renewals. Text labels accompany color.
+- The insight shows the largest subscription's actual monthly spending share;
+  no historical comparison or speculative savings are fabricated.
 
-The project proposal also calls for red subscription cards as renewal dates
-approach. The warning threshold must be agreed before that logic is implemented.
+The existing add form and icon upload remain in App. Adding a subscription
+updates all dashboard summaries. Editing, deletion, and subscription persistence
+remain separate work. `tests/dashboard.test.js` covers dates, sorting, and totals.
 
 ## Planned data flow
 

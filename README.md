@@ -7,14 +7,17 @@ The app includes the Material UI dashboard layout with sample subscriptions
 and browser-based account features for [issue #7](https://github.com/mics26/SubSave/issues/7).
 You can register, log in and out, edit your profile and login details, and try
 a simulated password recovery flow. Account details and login state survive
-refreshes using browser local storage. Subscription editing is still planned.
+refreshes using browser local storage. You can add monthly or yearly subscriptions
+with optional icons. The dashboard includes a category spending chart, annual
+expense estimate, renewal timeline, and relative renewal badges. Subscription
+editing, deletion, and persistence are still planned.
 
 ## Planned features
 
-- Add an active subscription, including its monthly cost and billing cycle.
-- View active subscriptions, monthly expenses, and upcoming renewal dates.
 - Highlight subscription cards in red as their renewal dates approach.
 - Edit and delete subscriptions, and persist data locally in the browser.
+
+See [dashboard verification](tests/dashboard.md) for the UI refresh checks.
 
 ## Stack
 
@@ -61,34 +64,6 @@ by Git. Preview is for checking the production build locally.
 No environment variables, API keys, or `.env` file are needed to run the app.
 The dashboard is available without logging in. `.env.example` explains future
 configuration conventions.
-
-## Try the account features
-
-1. Click **Create account**, enter a name, email, and matching passwords (8–128
-   characters), then submit. Registration logs you in automatically.
-2. Refresh to check that your login persists. Open the avatar menu and select
-   **Your account** to edit your name, email, or password. Changing an email or
-   password requires your current password.
-3. Use the avatar menu to **Log out**, then log in again with your saved details.
-4. From **Log in**, choose **Forgot password?**, enter your registered email, and
-   use the recovery code displayed on screen to set a new password. No email is
-   sent. Codes expire after 10 minutes or five incorrect attempts; closing the
-   dialog or refreshing ends that recovery flow. Log in with your new password.
-
-Accounts work only on the same browser profile and origin (including the port).
-For example, `localhost:5173` and `127.0.0.1:5173` have separate storage.
-Use test details: this is a demo, not secure server authentication. Passwords
-are stored as salted PBKDF2 hashes, but local storage can still be inspected or
-modified. Recovery codes are kept in memory rather than saved to storage.
-The dashboard subscriptions remain shared sample data.
-
-To start over, remove only `subsave.accounts.v1` from this app's Local Storage
-in browser developer tools, then refresh. This removes all demo accounts and
-login state for that origin. The app reports unreadable or unavailable storage
-instead of silently overwriting existing account data.
-
-See [the account test checklist](tests/accounts.md) for acceptance checks and
-the [commit/PR steps](tests/accounts.md#commit-and-open-a-pull-request) for this branch.
 
 ## Repository layout
 
