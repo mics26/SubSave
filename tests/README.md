@@ -1,7 +1,10 @@
 # Project setup verification
 
-These checks verify APP-01. This folder does not yet contain an automated
-behavior test suite. Run the following from a fresh clone or a separate checkout
+For the account features in issue #7, see [account verification](accounts.md).
+Run `npm test` for the automated account behavior suite. The setup checks below
+are historical APP-01 checks; the current app displays the dashboard.
+
+These checks verify APP-01. Run the following from a fresh clone or a separate checkout
 so an existing `node_modules/` directory cannot hide missing dependencies.
 
 1. Confirm Git, Node.js 24, and npm 11+ are installed.
