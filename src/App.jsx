@@ -5,16 +5,12 @@ import {
   Avatar,
   Box,
   Button,
-  Card,
-  CardContent,
-  Chip,
   Container,
   CssBaseline,
   Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
-  Divider,
   FormHelperText,
   ListItemIcon,
   Menu,
@@ -27,19 +23,17 @@ import {
   createTheme,
 } from '@mui/material';
 import {
-  AccountBalanceWalletOutlined,
-  AddRounded,
   AutorenewRounded,
   CloudUploadOutlined,
   DeleteOutlineRounded,
-  EventRepeatOutlined,
   LogoutRounded,
   PersonOutlineRounded,
-  SubscriptionsOutlined,
 } from '@mui/icons-material';
+import Dashboard from './dashboard/Dashboard.jsx';
 import AccountDialog from './accounts/AccountDialog.jsx';
 import AccountPage from './accounts/AccountPage.jsx';
 import { ACCOUNT_STORAGE_KEY, createAccountService } from './accounts/accountService.js';
+import { getSubscriptionIcon, PRESET_ICONS } from './subscriptions/presetIcons.js';
 
 const accountService = createAccountService();
 
@@ -60,7 +54,7 @@ const greenTheme = createTheme({
       contrastText: '#ffffff',
     },
     background: {
-      default: '#f4f7f5',
+      default: '#f4f7f6',
       paper: '#ffffff',
     },
     text: {
@@ -69,10 +63,10 @@ const greenTheme = createTheme({
     },
   },
   shape: {
-    borderRadius: 12,
+    borderRadius: 16,
   },
   typography: {
-    fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+    fontFamily: "'DM Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
     button: {
       textTransform: 'none',
       fontWeight: 600,
@@ -84,6 +78,7 @@ const INITIAL_SUBSCRIPTIONS = [
   {
     id: 'sub-1',
     name: 'Spotify Premium',
+    iconPreset: 'spotify',
     category: 'Music & Audio',
     cost: 149.0,
     billingCycle: 'Monthly',
@@ -93,6 +88,7 @@ const INITIAL_SUBSCRIPTIONS = [
   {
     id: 'sub-2',
     name: 'Netflix Standard',
+    iconPreset: 'netflix',
     category: 'Entertainment',
     cost: 399.0,
     billingCycle: 'Monthly',
@@ -102,6 +98,7 @@ const INITIAL_SUBSCRIPTIONS = [
   {
     id: 'sub-3',
     name: 'GitHub Pro',
+    iconPreset: 'github',
     category: 'Developer Tools',
     cost: 230.0,
     billingCycle: 'Monthly',
@@ -111,6 +108,7 @@ const INITIAL_SUBSCRIPTIONS = [
   {
     id: 'sub-4',
     name: 'Google One (100GB)',
+    iconPreset: 'google-one',
     category: 'Cloud Storage',
     cost: 89.0,
     billingCycle: 'Monthly',
@@ -127,6 +125,7 @@ const INITIAL_FORM_STATE = {
   nextRenewal: '',
   icon: null,
   iconName: '',
+  iconPreset: 'auto',
 };
 
 function formatRenewalDate(dateString) {
@@ -178,26 +177,22 @@ function App() {
     }
   }
 
-  const totalMonthly = SAMPLE_SUBSCRIPTIONS.reduce(
-    (sum, item) => sum + item.cost,
-    0
-  );
+  function showDashboardSection(section) {
+    setPage('dashboard');
+    window.requestAnimationFrame(() => {
+      document.getElementById(section)?.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' });
+    });
+  }
+
   const [subscriptions, setSubscriptions] = useState(INITIAL_SUBSCRIPTIONS);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [formData, setFormData] = useState(INITIAL_FORM_STATE);
   const [errors, setErrors] = useState({});
   const fileInputRef = useRef(null);
-
-  // Calculate total monthly expense (normalizes Yearly subscriptions to Monthly cost)
-  const totalMonthly = subscriptions.reduce((sum, item) => {
-    const monthlyEquivalent =
-      item.billingCycle === 'Yearly' ? item.cost / 12 : item.cost;
-    return sum + monthlyEquivalent;
-  }, 0);
-
-  const nextUpcoming = subscriptions[0];
+  const iconReadRef = useRef(0);
 
   const resetForm = () => {
+    iconReadRef.current += 1;
     setFormData(INITIAL_FORM_STATE);
     setErrors({});
     if (fileInputRef.current) {
@@ -226,6 +221,7 @@ function App() {
   const handleIconUpload = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    const readId = ++iconReadRef.current;
 
     const validTypes = ['image/png', 'image/jpeg'];
     if (!validTypes.includes(file.type)) {
@@ -240,23 +236,38 @@ function App() {
     }
 
     const reader = new FileReader();
-    reader.onloadend = () => {
+    reader.onload = () => {
+      if (readId !== iconReadRef.current) return;
       setFormData((prev) => ({
         ...prev,
         icon: reader.result,
         iconName: file.name,
+        iconPreset: 'custom',
       }));
       setErrors((prev) => ({ ...prev, icon: '' }));
+    };
+    reader.onerror = () => {
+      if (readId === iconReadRef.current) {
+        setErrors((prev) => ({ ...prev, icon: 'This image could not be read. Choose another file.' }));
+      }
     };
     reader.readAsDataURL(file);
   };
 
   const handleClearIcon = () => {
-    setFormData((prev) => ({ ...prev, icon: null, iconName: '' }));
+    iconReadRef.current += 1;
+    setFormData((prev) => ({ ...prev, icon: null, iconName: '', iconPreset: 'none' }));
     setErrors((prev) => ({ ...prev, icon: '' }));
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
+  };
+
+  const handlePresetIcon = (iconPreset) => {
+    iconReadRef.current += 1;
+    setFormData((prev) => ({ ...prev, iconPreset, icon: null, iconName: '' }));
+    setErrors((prev) => ({ ...prev, icon: '' }));
+    if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   const validateForm = () => {
@@ -267,7 +278,7 @@ function App() {
     }
 
     const parsedCost = Number(formData.cost);
-    if (!formData.cost || Number.isNaN(parsedCost) || parsedCost <= 0) {
+    if (!formData.cost || !Number.isFinite(parsedCost) || parsedCost <= 0) {
       newErrors.cost = 'Please enter a valid cost greater than 0.';
     }
 
@@ -295,6 +306,7 @@ function App() {
       billingCycle: formData.billingCycle,
       nextRenewal: formatRenewalDate(formData.nextRenewal),
       icon: formData.icon || null,
+      iconPreset: formData.iconPreset,
     };
 
     setSubscriptions((prev) => [...prev, newSubscription]);
@@ -308,29 +320,30 @@ function App() {
 
       {/* Top Navigation Bar */}
       <AppBar
-        position="static"
+        position="sticky"
         color="inherit"
         elevation={0}
-        sx={{ borderBottom: '1px solid #e2e8f0', bgcolor: 'background.paper' }}
+        sx={{ borderBottom: '1px solid #e5e7eb', bgcolor: 'rgba(255,255,255,.88)', backdropFilter: 'blur(12px)' }}
       >
-        <Container maxWidth="lg">
-          <Toolbar disableGutters sx={{ justifyContent: 'space-between', flexWrap: 'wrap', columnGap: 1, rowGap: 0.5, py: { xs: 1, sm: 0 } }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              <AutorenewRounded sx={{ color: 'primary.main', fontSize: 26 }} />
+        <Container maxWidth={false} sx={{ maxWidth: 1180 }}>
+          <Toolbar disableGutters className="app-toolbar">
+            <Box component="button" className="app-logo" onClick={() => setPage('dashboard')} aria-label="SubSave dashboard">
+              <Box className="app-logo-mark"><AutorenewRounded sx={{ fontSize: 22 }} /></Box>
               <Typography
                 variant="h6"
-                sx={{ fontWeight: 700, color: 'primary.dark' }}
+                component="span"
+                sx={{ fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", fontWeight: 700, color: 'primary.dark', fontSize: 22, letterSpacing: '-.02em' }}
               >
                 SubSave
               </Typography>
             </Box>
 
-            <Box component="nav" aria-label="Main navigation" sx={{ display: 'flex', gap: { xs: 0, sm: 1 }, order: { xs: 3, md: 0 }, width: { xs: '100%', md: 'auto' }, justifyContent: 'center' }}>
-              <Button color="primary" sx={{ fontWeight: 700 }} onClick={() => setPage('dashboard')} aria-current={page === 'dashboard' || !user ? 'page' : undefined}>
+            <Box component="nav" aria-label="Main navigation" className="app-navigation">
+              <Button className={page === 'dashboard' || !user ? 'nav-active' : undefined} onClick={() => setPage('dashboard')} aria-current={page === 'dashboard' || !user ? 'page' : undefined}>
                 Dashboard
               </Button>
-              <Button sx={{ color: 'text.secondary' }}>Subscriptions</Button>
-              <Button sx={{ color: 'text.secondary' }}>Reports</Button>
+              <Button onClick={() => showDashboardSection('subscriptions')}>Subscriptions</Button>
+              <Button onClick={() => showDashboardSection('spending')}>Reports</Button>
             </Box>
             {user ? (
               <Button
@@ -342,7 +355,7 @@ function App() {
                 <Box component="span" sx={{ display: { xs: 'none', sm: 'block' }, maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user.name}</Box>
               </Button>
             ) : (
-              <Box sx={{ display: 'flex', gap: 0.5 }}>
+              <Box className="app-auth-actions" sx={{ display: 'flex', gap: 0.5 }}>
                 <Button onClick={() => setDialog('login')}>Log in</Button>
                 <Button variant="contained" disableElevation onClick={() => setDialog('register')}>Create account</Button>
               </Box>
@@ -360,212 +373,12 @@ function App() {
       </Menu>
 
       {/* Main Content */}
-      <Container maxWidth="lg" sx={{ py: 4 }}>
+      <Container component="main" maxWidth={false} sx={{ maxWidth: 1180, pt: { xs: 3, sm: 4.5 }, pb: 8 }}>
         {storageError && <Alert severity="error" sx={{ mb: 3 }} action={<Button color="inherit" onClick={() => setAccount(readAccount())}>Retry</Button>}>{storageError}</Alert>}
         {page === 'account' && user ? (
           <AccountPage key={`${user.id}:${user.name}:${user.email}`} user={user} service={accountService} onChanged={accountChanged} onBack={() => setPage('dashboard')} />
         ) : (
-          <>
-        {/* Header Section */}
-        <Box
-          sx={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: { xs: 'flex-start', sm: 'center' },
-            flexDirection: { xs: 'column', sm: 'row' },
-            gap: 2,
-            mb: 3.5,
-          }}
-        >
-          <Box>
-            <Typography variant="h5" sx={{ fontWeight: 700 }}>
-              Dashboard Overview
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              Track your active subscriptions, monthly costs, and upcoming renewals.
-            </Typography>
-          </Box>
-
-          <Button
-            variant="contained"
-            color="primary"
-            startIcon={<AddRounded />}
-            disableElevation
-            onClick={handleOpenModal}
-          >
-            Add Subscription
-          </Button>
-        </Box>
-
-        {/* Monthly Expense & Summary Overview */}
-        <div className="overview-grid">
-          <Card
-            variant="outlined"
-            sx={{
-              bgcolor: 'primary.light',
-              borderColor: '#a7f3d0',
-            }}
-          >
-            <CardContent>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <Typography variant="body2" color="text.secondary" fontWeight={500}>
-                  Total Monthly Expense
-                </Typography>
-                <AccountBalanceWalletOutlined sx={{ color: 'primary.dark', fontSize: 20 }} />
-              </Box>
-              <Typography
-                variant="h4"
-                sx={{ fontWeight: 700, color: 'primary.dark', my: 0.5 }}
-              >
-                ₱{totalMonthly.toFixed(2)}
-              </Typography>
-              <Typography variant="caption" color="text.secondary">
-                Estimated recurring monthly spend
-              </Typography>
-            </CardContent>
-          </Card>
-
-          <Card variant="outlined">
-            <CardContent>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <Typography variant="body2" color="text.secondary" fontWeight={500}>
-                  Active Subscriptions
-                </Typography>
-                <SubscriptionsOutlined sx={{ color: 'primary.main', fontSize: 20 }} />
-              </Box>
-              <Typography variant="h4" sx={{ fontWeight: 700, my: 0.5 }}>
-                {subscriptions.length}
-              </Typography>
-              <Typography variant="caption" color="text.secondary">
-                All services currently active
-              </Typography>
-            </CardContent>
-          </Card>
-
-          <Card variant="outlined">
-            <CardContent>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <Typography variant="body2" color="text.secondary" fontWeight={500}>
-                  Next Renewal
-                </Typography>
-                <EventRepeatOutlined sx={{ color: 'primary.main', fontSize: 20 }} />
-              </Box>
-              <Typography variant="h5" sx={{ fontWeight: 700, my: 0.8 }}>
-                {nextUpcoming ? nextUpcoming.nextRenewal : 'N/A'}
-              </Typography>
-              <Typography variant="caption" color="text.secondary">
-                {nextUpcoming
-                  ? `${nextUpcoming.name} (₱${nextUpcoming.cost.toFixed(2)})`
-                  : 'No upcoming renewals'}
-              </Typography>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Subscriptions List Section */}
-        <Box
-          sx={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            mb: 2,
-          }}
-        >
-          <Typography variant="h6" sx={{ fontWeight: 600 }}>
-            Your Subscriptions
-          </Typography>
-          <Chip
-            label={`${subscriptions.length} Active`}
-            size="small"
-            sx={{
-              bgcolor: 'primary.light',
-              color: 'primary.dark',
-              fontWeight: 600,
-            }}
-          />
-        </Box>
-
-        <div className="subscription-grid">
-          {subscriptions.map((sub) => (
-            <Card
-              key={sub.id}
-              variant="outlined"
-              sx={{
-                transition: 'border-color 0.15s ease',
-                '&:hover': { borderColor: 'primary.main' },
-              }}
-            >
-              <CardContent>
-                <Box
-                  sx={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'flex-start',
-                    mb: 2,
-                  }}
-                >
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                    <Avatar
-                      src={sub.icon || undefined}
-                      alt={sub.name}
-                      variant="rounded"
-                      sx={{
-                        bgcolor: 'primary.light',
-                        color: 'primary.dark',
-                        fontWeight: 700,
-                      }}
-                    >
-                      {sub.name.charAt(0).toUpperCase()}
-                    </Avatar>
-                    <Box>
-                      <Typography variant="subtitle1" sx={{ fontWeight: 600, lineHeight: 1.3 }}>
-                        {sub.name}
-                      </Typography>
-                      <Typography variant="caption" color="text.secondary">
-                        {sub.category}
-                      </Typography>
-                    </Box>
-                  </Box>
-
-                  <Box sx={{ textAlign: 'right' }}>
-                    <Typography variant="subtitle1" sx={{ fontWeight: 700, lineHeight: 1.3 }}>
-                      ₱{sub.cost.toFixed(2)}
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      {sub.billingCycle}
-                    </Typography>
-                  </Box>
-                </Box>
-
-                <Divider sx={{ my: 1.5 }} />
-
-                <Box
-                  sx={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                  }}
-                >
-                  <Typography variant="caption" color="text.secondary">
-                    Upcoming Renewal
-                  </Typography>
-                  <Chip
-                    label={sub.nextRenewal}
-                    size="small"
-                    variant="outlined"
-                    sx={{
-                      borderColor: '#a7f3d0',
-                      color: 'primary.dark',
-                      fontWeight: 600,
-                      fontSize: '0.75rem',
-                    }}
-                  />
-                </Box>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-          </>
+          <Dashboard subscriptions={subscriptions} onAddSubscription={handleOpenModal} />
         )}
       </Container>
       {dialog && <AccountDialog initialMode={dialog} service={accountService} onClose={closeDialog} onChanged={accountChanged} />}
@@ -664,7 +477,23 @@ function App() {
               slotProps={{ inputLabel: { shrink: true } }}
             />
 
-            {/* Custom Icon Upload (PNG/JPEG) with Default Placeholder Fallback */}
+            <Box>
+              <Typography id="subscription-icon-label" variant="body2" fontWeight={600} sx={{ mb: 1 }}>Subscription icon</Typography>
+              <Box role="group" aria-labelledby="subscription-icon-label" sx={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 1 }}>
+                {[{ id: 'auto', label: 'Automatic' }, ...PRESET_ICONS, { id: 'none', label: 'No icon' }].map((preset) => (
+                  <Button key={preset.id} type="button" aria-pressed={formData.iconPreset === preset.id}
+                    onClick={() => handlePresetIcon(preset.id)} variant="outlined" size="small"
+                    startIcon={preset.src ? <Box component="img" src={preset.src} alt="" sx={{ width: 20, height: 20, objectFit: 'contain' }} /> : undefined}
+                    sx={{ justifyContent: 'flex-start', px: 1.5, py: 1, borderRadius: 2, color: formData.iconPreset === preset.id ? 'primary.dark' : 'text.secondary',
+                      borderColor: formData.iconPreset === preset.id ? 'primary.main' : 'divider', bgcolor: formData.iconPreset === preset.id ? 'primary.light' : 'transparent' }}>
+                    {preset.label}
+                  </Button>
+                ))}
+              </Box>
+              <FormHelperText sx={{ mx: 0, mt: 1 }}>Automatic matches the service name. You can also choose a preset or upload your own.</FormHelperText>
+            </Box>
+
+            {/* Custom uploads override automatic matching and selected presets. */}
             <Box>
               <Typography
                 variant="caption"
@@ -676,7 +505,8 @@ function App() {
 
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
                 <Avatar
-                  src={formData.icon || undefined}
+                  src={getSubscriptionIcon(formData)}
+                  alt="Selected subscription icon"
                   variant="rounded"
                   sx={{
                     width: 42,
@@ -685,6 +515,7 @@ function App() {
                     color: 'primary.dark',
                     fontWeight: 700,
                     border: '1px solid #a7f3d0',
+                    '& img': { objectFit: 'contain', p: formData.icon ? 0 : 1 },
                   }}
                 >
                   {formData.name ? formData.name.charAt(0).toUpperCase() : '?'}
@@ -707,13 +538,13 @@ function App() {
                   />
                 </Button>
 
-                {formData.icon && (
+                {getSubscriptionIcon(formData) && (
                   <Button
                     color="error"
                     size="small"
                     onClick={handleClearIcon}
                     sx={{ minWidth: 'auto', p: 0.75 }}
-                    aria-label="Remove uploaded icon"
+                    aria-label="Remove selected icon"
                   >
                     <DeleteOutlineRounded fontSize="small" />
                   </Button>
