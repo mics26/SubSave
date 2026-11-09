@@ -1,5 +1,6 @@
-import { useState, useRef } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import {
+  Alert,
   AppBar,
   Avatar,
   Box,
@@ -15,7 +16,10 @@ import {
   DialogTitle,
   Divider,
   FormHelperText,
+  ListItemIcon,
+  Menu,
   MenuItem,
+  Snackbar,
   TextField,
   ThemeProvider,
   Toolbar,
@@ -29,8 +33,23 @@ import {
   CloudUploadOutlined,
   DeleteOutlineRounded,
   EventRepeatOutlined,
+  LogoutRounded,
+  PersonOutlineRounded,
   SubscriptionsOutlined,
 } from '@mui/icons-material';
+import AccountDialog from './accounts/AccountDialog.jsx';
+import AccountPage from './accounts/AccountPage.jsx';
+import { ACCOUNT_STORAGE_KEY, createAccountService } from './accounts/accountService.js';
+
+const accountService = createAccountService();
+
+function readAccount() {
+  try {
+    return { user: accountService.currentAccount(), error: '' };
+  } catch (error) {
+    return { user: null, error: error.message };
+  }
+}
 
 const greenTheme = createTheme({
   palette: {
@@ -121,6 +140,48 @@ function formatRenewalDate(dateString) {
 }
 
 function App() {
+  const [{ user, error: storageError }, setAccount] = useState(readAccount);
+  const [dialog, setDialog] = useState(null);
+  const [page, setPage] = useState('dashboard');
+  const [menuAnchor, setMenuAnchor] = useState(null);
+  const [notification, setNotification] = useState(null);
+
+  useEffect(() => {
+    function syncStorage(event) {
+      if (event.key === ACCOUNT_STORAGE_KEY || event.key === null) {
+        setAccount(readAccount());
+        setMenuAnchor(null);
+      }
+    }
+    window.addEventListener('storage', syncStorage);
+    return () => window.removeEventListener('storage', syncStorage);
+  }, []);
+
+  function accountChanged(message) {
+    setAccount(readAccount());
+    if (message) setNotification({ severity: 'success', message });
+  }
+
+  function closeDialog() {
+    accountService.cancelRecovery();
+    setDialog(null);
+  }
+
+  function logout() {
+    setMenuAnchor(null);
+    try {
+      accountService.logout();
+      accountChanged('You’re logged out.');
+      setPage('dashboard');
+    } catch (error) {
+      setNotification({ severity: 'error', message: error.message });
+    }
+  }
+
+  const totalMonthly = SAMPLE_SUBSCRIPTIONS.reduce(
+    (sum, item) => sum + item.cost,
+    0
+  );
   const [subscriptions, setSubscriptions] = useState(INITIAL_SUBSCRIPTIONS);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [formData, setFormData] = useState(INITIAL_FORM_STATE);
@@ -253,7 +314,7 @@ function App() {
         sx={{ borderBottom: '1px solid #e2e8f0', bgcolor: 'background.paper' }}
       >
         <Container maxWidth="lg">
-          <Toolbar disableGutters sx={{ justifyContent: 'space-between' }}>
+          <Toolbar disableGutters sx={{ justifyContent: 'space-between', flexWrap: 'wrap', columnGap: 1, rowGap: 0.5, py: { xs: 1, sm: 0 } }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
               <AutorenewRounded sx={{ color: 'primary.main', fontSize: 26 }} />
               <Typography
@@ -264,19 +325,47 @@ function App() {
               </Typography>
             </Box>
 
-            <Box sx={{ display: 'flex', gap: 1 }}>
-              <Button color="primary" sx={{ fontWeight: 700 }}>
+            <Box component="nav" aria-label="Main navigation" sx={{ display: 'flex', gap: { xs: 0, sm: 1 }, order: { xs: 3, md: 0 }, width: { xs: '100%', md: 'auto' }, justifyContent: 'center' }}>
+              <Button color="primary" sx={{ fontWeight: 700 }} onClick={() => setPage('dashboard')} aria-current={page === 'dashboard' || !user ? 'page' : undefined}>
                 Dashboard
               </Button>
               <Button sx={{ color: 'text.secondary' }}>Subscriptions</Button>
               <Button sx={{ color: 'text.secondary' }}>Reports</Button>
             </Box>
+            {user ? (
+              <Button
+                id="account-menu-button" aria-label="Open account menu" aria-controls={menuAnchor ? 'account-menu' : undefined}
+                aria-haspopup="true" aria-expanded={Boolean(menuAnchor)} onClick={(event) => setMenuAnchor(event.currentTarget)}
+                sx={{ color: 'text.primary', gap: 1, minWidth: 0 }}
+              >
+                <Avatar sx={{ width: 32, height: 32, bgcolor: 'primary.light', color: 'primary.dark', fontSize: 15 }}>{user.name.charAt(0).toUpperCase()}</Avatar>
+                <Box component="span" sx={{ display: { xs: 'none', sm: 'block' }, maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user.name}</Box>
+              </Button>
+            ) : (
+              <Box sx={{ display: 'flex', gap: 0.5 }}>
+                <Button onClick={() => setDialog('login')}>Log in</Button>
+                <Button variant="contained" disableElevation onClick={() => setDialog('register')}>Create account</Button>
+              </Box>
+            )}
           </Toolbar>
         </Container>
       </AppBar>
 
+      <Menu id="account-menu" anchorEl={menuAnchor} open={Boolean(menuAnchor) && Boolean(user)} onClose={() => setMenuAnchor(null)}
+        slotProps={{ list: { 'aria-labelledby': 'account-menu-button' } }}>
+        <MenuItem onClick={() => { setPage('account'); setMenuAnchor(null); }}>
+          <ListItemIcon><PersonOutlineRounded fontSize="small" /></ListItemIcon>Your account
+        </MenuItem>
+        <MenuItem onClick={logout}><ListItemIcon><LogoutRounded fontSize="small" /></ListItemIcon>Log out</MenuItem>
+      </Menu>
+
       {/* Main Content */}
       <Container maxWidth="lg" sx={{ py: 4 }}>
+        {storageError && <Alert severity="error" sx={{ mb: 3 }} action={<Button color="inherit" onClick={() => setAccount(readAccount())}>Retry</Button>}>{storageError}</Alert>}
+        {page === 'account' && user ? (
+          <AccountPage key={`${user.id}:${user.name}:${user.email}`} user={user} service={accountService} onChanged={accountChanged} onBack={() => setPage('dashboard')} />
+        ) : (
+          <>
         {/* Header Section */}
         <Box
           sx={{
@@ -476,7 +565,13 @@ function App() {
             </Card>
           ))}
         </div>
+          </>
+        )}
       </Container>
+      {dialog && <AccountDialog initialMode={dialog} service={accountService} onClose={closeDialog} onChanged={accountChanged} />}
+      <Snackbar open={Boolean(notification)} autoHideDuration={6000} onClose={(_, reason) => { if (reason !== 'clickaway') setNotification(null); }}>
+        {notification ? <Alert severity={notification.severity} variant="filled" onClose={() => setNotification(null)} sx={{ width: '100%' }}>{notification.message}</Alert> : undefined}
+      </Snackbar>
 
       {/* Add Subscription Dialog Form */}
       <Dialog
