@@ -5,6 +5,7 @@ import {
   LightbulbOutlined, SubscriptionsOutlined,
 } from '@mui/icons-material';
 import { buildDashboard, formatMoney } from './dashboardModel.js';
+import { getSubscriptionIcon } from '../subscriptions/presetIcons.js';
 import './dashboard.css';
 
 const formatDate = (date) => date.toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' });
@@ -101,7 +102,7 @@ export default function Dashboard({ subscriptions, onAddSubscription }) {
             {entries.map((sub) => (
               <article key={sub.id} className="dashboard-card subscription-card" style={{ '--category-color': sub.color }}>
                 <div className="subscription-card-top">
-                  <Avatar src={sub.icon || undefined} alt="" variant="rounded" className="subscription-avatar">{sub.name.charAt(0).toUpperCase()}</Avatar>
+                  <Avatar src={getSubscriptionIcon(sub)} alt="" variant="rounded" className={`subscription-avatar${sub.icon ? '' : ' subscription-avatar--preset'}`}>{sub.name.charAt(0).toUpperCase()}</Avatar>
                   <div className="subscription-details"><h3>{sub.name}</h3><span className="subscription-category">{sub.category}</span></div>
                   <div className="subscription-price"><strong>{formatMoney(sub.cost)}</strong><span>{sub.billingCycle === 'Yearly' ? 'per year' : 'per month'}</span></div>
                 </div>

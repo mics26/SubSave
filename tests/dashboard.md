@@ -21,6 +21,13 @@ Browser testing is left to the user, as requested earlier in this session.
   doughnut chart, and renewal timeline with the reference.
 - Open **Add Subscription** and save a monthly subscription with a custom icon.
   Confirm the card, count, total, chart, and timeline update together.
+- Confirm the four example cards display their brand icons. In the add form,
+  enter Spotify, Netflix, GitHub, or Google One names with **Automatic** selected
+  and check the preview. Try an unrelated name and check the initial fallback.
+- Choose each explicit preset with a custom subscription name. Save and confirm
+  the chosen icon appears. Try **No icon**, a custom upload, and icon removal.
+  Switching presets or closing the form while an upload reads must not restore
+  the old upload. Reopening the form should reset the choice to **Automatic**.
 - Add a yearly subscription costing 1200. Its card should show 1200 per year;
   the monthly total/category should increase by 100 and the annual estimate by 1200.
 - Add dates for yesterday, today, tomorrow, in five days, and in ten days. Check

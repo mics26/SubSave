@@ -33,6 +33,7 @@ import Dashboard from './dashboard/Dashboard.jsx';
 import AccountDialog from './accounts/AccountDialog.jsx';
 import AccountPage from './accounts/AccountPage.jsx';
 import { ACCOUNT_STORAGE_KEY, createAccountService } from './accounts/accountService.js';
+import { getSubscriptionIcon, PRESET_ICONS } from './subscriptions/presetIcons.js';
 
 const accountService = createAccountService();
 
@@ -77,6 +78,7 @@ const INITIAL_SUBSCRIPTIONS = [
   {
     id: 'sub-1',
     name: 'Spotify Premium',
+    iconPreset: 'spotify',
     category: 'Music & Audio',
     cost: 149.0,
     billingCycle: 'Monthly',
@@ -86,6 +88,7 @@ const INITIAL_SUBSCRIPTIONS = [
   {
     id: 'sub-2',
     name: 'Netflix Standard',
+    iconPreset: 'netflix',
     category: 'Entertainment',
     cost: 399.0,
     billingCycle: 'Monthly',
@@ -95,6 +98,7 @@ const INITIAL_SUBSCRIPTIONS = [
   {
     id: 'sub-3',
     name: 'GitHub Pro',
+    iconPreset: 'github',
     category: 'Developer Tools',
     cost: 230.0,
     billingCycle: 'Monthly',
@@ -104,6 +108,7 @@ const INITIAL_SUBSCRIPTIONS = [
   {
     id: 'sub-4',
     name: 'Google One (100GB)',
+    iconPreset: 'google-one',
     category: 'Cloud Storage',
     cost: 89.0,
     billingCycle: 'Monthly',
@@ -120,6 +125,7 @@ const INITIAL_FORM_STATE = {
   nextRenewal: '',
   icon: null,
   iconName: '',
+  iconPreset: 'auto',
 };
 
 function formatRenewalDate(dateString) {
@@ -183,8 +189,10 @@ function App() {
   const [formData, setFormData] = useState(INITIAL_FORM_STATE);
   const [errors, setErrors] = useState({});
   const fileInputRef = useRef(null);
+  const iconReadRef = useRef(0);
 
   const resetForm = () => {
+    iconReadRef.current += 1;
     setFormData(INITIAL_FORM_STATE);
     setErrors({});
     if (fileInputRef.current) {
@@ -213,6 +221,7 @@ function App() {
   const handleIconUpload = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    const readId = ++iconReadRef.current;
 
     const validTypes = ['image/png', 'image/jpeg'];
     if (!validTypes.includes(file.type)) {
@@ -227,23 +236,38 @@ function App() {
     }
 
     const reader = new FileReader();
-    reader.onloadend = () => {
+    reader.onload = () => {
+      if (readId !== iconReadRef.current) return;
       setFormData((prev) => ({
         ...prev,
         icon: reader.result,
         iconName: file.name,
+        iconPreset: 'custom',
       }));
       setErrors((prev) => ({ ...prev, icon: '' }));
+    };
+    reader.onerror = () => {
+      if (readId === iconReadRef.current) {
+        setErrors((prev) => ({ ...prev, icon: 'This image could not be read. Choose another file.' }));
+      }
     };
     reader.readAsDataURL(file);
   };
 
   const handleClearIcon = () => {
-    setFormData((prev) => ({ ...prev, icon: null, iconName: '' }));
+    iconReadRef.current += 1;
+    setFormData((prev) => ({ ...prev, icon: null, iconName: '', iconPreset: 'none' }));
     setErrors((prev) => ({ ...prev, icon: '' }));
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
+  };
+
+  const handlePresetIcon = (iconPreset) => {
+    iconReadRef.current += 1;
+    setFormData((prev) => ({ ...prev, iconPreset, icon: null, iconName: '' }));
+    setErrors((prev) => ({ ...prev, icon: '' }));
+    if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   const validateForm = () => {
@@ -282,6 +306,7 @@ function App() {
       billingCycle: formData.billingCycle,
       nextRenewal: formatRenewalDate(formData.nextRenewal),
       icon: formData.icon || null,
+      iconPreset: formData.iconPreset,
     };
 
     setSubscriptions((prev) => [...prev, newSubscription]);
@@ -452,7 +477,23 @@ function App() {
               slotProps={{ inputLabel: { shrink: true } }}
             />
 
-            {/* Custom Icon Upload (PNG/JPEG) with Default Placeholder Fallback */}
+            <Box>
+              <Typography id="subscription-icon-label" variant="body2" fontWeight={600} sx={{ mb: 1 }}>Subscription icon</Typography>
+              <Box role="group" aria-labelledby="subscription-icon-label" sx={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 1 }}>
+                {[{ id: 'auto', label: 'Automatic' }, ...PRESET_ICONS, { id: 'none', label: 'No icon' }].map((preset) => (
+                  <Button key={preset.id} type="button" aria-pressed={formData.iconPreset === preset.id}
+                    onClick={() => handlePresetIcon(preset.id)} variant="outlined" size="small"
+                    startIcon={preset.src ? <Box component="img" src={preset.src} alt="" sx={{ width: 20, height: 20, objectFit: 'contain' }} /> : undefined}
+                    sx={{ justifyContent: 'flex-start', px: 1.5, py: 1, borderRadius: 2, color: formData.iconPreset === preset.id ? 'primary.dark' : 'text.secondary',
+                      borderColor: formData.iconPreset === preset.id ? 'primary.main' : 'divider', bgcolor: formData.iconPreset === preset.id ? 'primary.light' : 'transparent' }}>
+                    {preset.label}
+                  </Button>
+                ))}
+              </Box>
+              <FormHelperText sx={{ mx: 0, mt: 1 }}>Automatic matches the service name. You can also choose a preset or upload your own.</FormHelperText>
+            </Box>
+
+            {/* Custom uploads override automatic matching and selected presets. */}
             <Box>
               <Typography
                 variant="caption"
@@ -464,7 +505,8 @@ function App() {
 
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
                 <Avatar
-                  src={formData.icon || undefined}
+                  src={getSubscriptionIcon(formData)}
+                  alt="Selected subscription icon"
                   variant="rounded"
                   sx={{
                     width: 42,
@@ -473,6 +515,7 @@ function App() {
                     color: 'primary.dark',
                     fontWeight: 700,
                     border: '1px solid #a7f3d0',
+                    '& img': { objectFit: 'contain', p: formData.icon ? 0 : 1 },
                   }}
                 >
                   {formData.name ? formData.name.charAt(0).toUpperCase() : '?'}
@@ -495,13 +538,13 @@ function App() {
                   />
                 </Button>
 
-                {formData.icon && (
+                {getSubscriptionIcon(formData) && (
                   <Button
                     color="error"
                     size="small"
                     onClick={handleClearIcon}
                     sx={{ minWidth: 'auto', p: 0.75 }}
-                    aria-label="Remove uploaded icon"
+                    aria-label="Remove selected icon"
                   >
                     <DeleteOutlineRounded fontSize="small" />
                   </Button>
