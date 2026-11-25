@@ -1,33 +1,8 @@
+import { AccountError, EMAIL_PATTERN, normalizeEmail, publicAccount, validateDetails, validateLogin } from './accountFields.js';
+
+export { AccountError } from './accountFields.js';
 export const ACCOUNT_STORAGE_KEY = 'subsave.accounts.v1';
 const ITERATIONS = 100_000;
-const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-export class AccountError extends Error {
-  constructor(message, fields = {}) {
-    super(message);
-    this.name = 'AccountError';
-    this.fields = fields;
-  }
-}
-
-function validateDetails({ name, email, password }, requirePassword = true) {
-  const fields = {};
-  if (!name?.trim() || name.trim().length > 80) {
-    fields.name = 'Enter a name between 1 and 80 characters.';
-  }
-  if (!email || email.length > 254 || !EMAIL_PATTERN.test(email.trim())) {
-    fields.email = 'Enter a valid email address.';
-  }
-  if (requirePassword && (!password || password.length < 8 || password.length > 128 || !password.trim())) {
-    fields.password = 'Use a password between 8 and 128 characters.';
-  }
-  if (Object.keys(fields).length) {
-    throw new AccountError('Please check the highlighted fields.', fields);
-  }
-}
-
-const normalizeEmail = (email) => email.trim().toLowerCase();
-const publicAccount = ({ id, name, email }) => ({ id, name, email });
 const toHex = (bytes) => Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
 
 async function hashPassword(password, salt) {
@@ -122,10 +97,7 @@ export function createAccountService(getStorage = () => window.localStorage) {
       return publicAccount(account);
     },
     async login({ email, password }) {
-      const fields = {};
-      if (!email || !EMAIL_PATTERN.test(email.trim())) fields.email = 'Enter a valid email address.';
-      if (!password) fields.password = 'Enter your password.';
-      if (Object.keys(fields).length) throw new AccountError('Please check the highlighted fields.', fields);
+      validateLogin({ email, password });
       const data = read();
       const account = data.accounts.find((item) => item.email === normalizeEmail(email));
       if (!account || await hashPassword(password, account.salt) !== account.passwordHash) {
