@@ -8,8 +8,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.regex.Pattern;
 
-import static com.subsave.ApiRequests.text;
-import static com.subsave.ApiRequests.trim;
+import static com.subsave.RequestFields.text;
+import static com.subsave.RequestFields.trim;
 
 record SubscriptionDetails(String name, String category, BigDecimal cost, String billingCycle,
                            String nextRenewal, String iconPreset, String icon) {

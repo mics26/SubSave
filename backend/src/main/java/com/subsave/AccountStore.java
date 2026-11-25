@@ -16,7 +16,7 @@ import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import static com.subsave.ApiRequests.text;
+import static com.subsave.RequestFields.text;
 
 @Service
 class AccountStore {
@@ -70,14 +70,12 @@ class AccountStore {
     @Transactional
     public SignedIn login(Map<String, Object> input, String previousToken) {
         var details = AccountDetails.forLogin(input);
-        var account = findByEmail(details.email(), false);
+        // Lock the credential row so password changes and sign-in can't overlap.
+        var account = jdbc.sql("SELECT " + CREDENTIAL_COLUMNS + "FROM account_credentials c WHERE c.email = :email FOR UPDATE")
+            .param("email", details.email()).query((row, number) -> readCredentials(row)).optional().orElse(null);
         byte[] hash = hashPassword(details.password(), account == null ? DUMMY_SALT : account.salt());
         if (account == null || !MessageDigest.isEqual(hash, account.hash())) throw invalidLogin();
-
-        var current = findByEmail(details.email(), true);
-        if (current == null || !current.user().id().equals(account.user().id())
-            || !MessageDigest.isEqual(hash, current.hash())) throw invalidLogin();
-        return new SignedIn(current.user(), startSession(current.user().id(), previousToken));
+        return new SignedIn(account.user(), startSession(account.user().id(), previousToken));
     }
 
     void logout(String token) {
@@ -114,12 +112,6 @@ class AccountStore {
 
         jdbc.sql("DELETE FROM account_sessions WHERE account_id = UUID_TO_BIN(:id)").param("id", user.id()).update();
         return new SignedIn(user, startSession(user.id(), null));
-    }
-
-    private Credentials findByEmail(String email, boolean lock) {
-        String sql = "SELECT " + CREDENTIAL_COLUMNS + "FROM account_credentials c WHERE c.email = :email";
-        return jdbc.sql(lock ? sql + " FOR UPDATE" : sql).param("email", email)
-            .query((row, number) -> readCredentials(row)).optional().orElse(null);
     }
 
     private Credentials findSessionForUpdate(String token) {

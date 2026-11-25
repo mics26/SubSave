@@ -5,8 +5,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.regex.Pattern;
 
-import static com.subsave.ApiRequests.text;
-import static com.subsave.ApiRequests.trim;
+import static com.subsave.RequestFields.text;
+import static com.subsave.RequestFields.trim;
 
 record AccountDetails(String name, String email, String password) {
     private static final Pattern EMAIL = Pattern.compile(
