@@ -15,7 +15,7 @@ test('next renewal and timeline use chronological future dates while preserving 
   const result = buildDashboard(source, new Date(2026, 10, 9));
   assert.equal(result.nextUpcoming.id, 'next');
   assert.deepEqual(result.upcoming.map((entry) => entry.id), ['next', 'later']);
-  assert.equal(result.overdueCount, 1);
+  assert.deepEqual(result.overdue.map((entry) => entry.id), ['overdue']);
   assert.equal(result.entries[0].daysUntil, -4);
   assert.equal(result.entries[0].status.label, '4 days overdue');
   assert.deepEqual(source.map((entry) => entry.id), ['later', 'overdue', 'next']);
@@ -58,11 +58,32 @@ test('renewal badges distinguish overdue, today, tomorrow, urgent, soon, and lat
   assert.equal(renewalStatus(8).tone, 'ok');
 });
 
+test('warning groups and card highlights follow the selected calendar day', () => {
+  const records = [
+    subscription('day-four', '2026-12-15'),
+    subscription('day-three', '2026-12-14'),
+    subscription('today', '2026-12-11'),
+    subscription('overdue', '2026-12-10'),
+    subscription('invalid', 'not-a-date'),
+  ];
+  const result = buildDashboard(records, parseRenewalDate('2026-12-11'));
+  assert.deepEqual(result.dueSoon.map((entry) => entry.id), ['today', 'day-three']);
+  assert.deepEqual(result.overdue.map((entry) => entry.id), ['overdue']);
+  assert.deepEqual(result.entries.map((entry) => entry.warning), ['overdue', 'due-soon', 'due-soon', null, null]);
+
+  const tomorrow = buildDashboard(records, parseRenewalDate('2026-12-12'));
+  assert.deepEqual(tomorrow.dueSoon.map((entry) => entry.id), ['day-three', 'day-four']);
+  assert.deepEqual(tomorrow.overdue.map((entry) => entry.id), ['overdue', 'today']);
+  assert.equal(records[0].nextRenewal, '2026-12-15');
+});
+
 test('handles empty lists, all-past renewals, and invalid dates without selecting a fake next renewal', () => {
   const empty = buildDashboard([], new Date(2026, 10, 9));
   assert.equal(empty.totalMonthly, 0);
   assert.equal(empty.nextUpcoming, null);
   assert.equal(empty.largest, null);
+  assert.deepEqual(empty.dueSoon, []);
+  assert.deepEqual(empty.overdue, []);
   assert.deepEqual(empty.categories, []);
   const result = buildDashboard([
     subscription('past', '2026-01-01'), subscription('invalid', 'not-a-date'),
