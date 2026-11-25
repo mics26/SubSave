@@ -88,7 +88,6 @@
 .spending-insight strong { color: #047857; }
 .dashboard-empty { font-size: 13px; color: var(--dashboard-muted); line-height: 1.6; }
 .dashboard-card.dashboard-empty { padding: 24px; }
-#subscriptions, #spending { scroll-margin-top: 155px; }
 
 @media (max-width: 1100px) and (min-width: 981px) {
   .dashboard .subscription-grid { grid-template-columns: 1fr; }

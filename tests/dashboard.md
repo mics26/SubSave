@@ -17,7 +17,7 @@ Browser testing is left to the user, as requested earlier in this session.
 - Check the layout at 1440px, 1024px, 768px, 390px, and 320px. The sidebar should
   move below subscriptions on tablets and stack on mobile. Confirm no horizontal
   scrolling, clipped prices, or hidden account buttons.
-- Compare the gradient expense card, logo, navigation tabs, category colors,
+- Compare the gradient expense card, logo, category colors,
   doughnut chart, and renewal timeline with the reference.
 - Open **Add Subscription** and save a monthly subscription with a custom icon.
   Confirm the card, count, total, chart, and timeline update together.
@@ -33,9 +33,8 @@ Browser testing is left to the user, as requested earlier in this session.
 - Add dates for yesterday, today, tomorrow, in five days, and in ten days. Check
   overdue/today/tomorrow wording, red/amber/green badges, chronological ordering,
   and that overdue records do not become the next future renewal.
-- Confirm **Subscriptions** scrolls to the cards and **Reports** to the category
-  breakdown, including when opened from the account page. The logo returns to
-  the dashboard. Check keyboard focus and reduced-motion behavior.
+- Open **Your account**, then use the SubSave logo or **Back to dashboard** to
+  return to the dashboard. Check the logo and account menu with keyboard and touch.
 - Confirm login/logout, account editing, refresh persistence, and password
   recovery still work. Check add-form validation, cancel/reset, and icon removal.
 - Google Fonts should load when online; with fonts blocked the system fallbacks

@@ -226,11 +226,9 @@ function App() {
     }
   }
 
-  function showDashboardSection(section) {
+  function showDashboard() {
     setPage('dashboard');
-    window.requestAnimationFrame(() => {
-      document.getElementById(section)?.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' });
-    });
+    window.scrollTo(0, 0);
   }
 
   const handleOpenModal = (subscription) => {
@@ -399,7 +397,7 @@ function App() {
       >
         <Container maxWidth={false} sx={{ maxWidth: 1180 }}>
           <Toolbar disableGutters className="app-toolbar">
-            <Box component="button" className="app-logo" onClick={() => setPage('dashboard')} aria-label="SubSave dashboard">
+            <Box component="button" className="app-logo" onClick={showDashboard} aria-label="SubSave dashboard">
               <Box className="app-logo-mark"><AutorenewRounded sx={{ fontSize: 22 }} /></Box>
               <Typography
                 variant="h6"
@@ -410,13 +408,6 @@ function App() {
               </Typography>
             </Box>
 
-            {canShowDashboard && <Box component="nav" aria-label="Main navigation" className="app-navigation">
-              <Button className={page === 'dashboard' || !user ? 'nav-active' : undefined} onClick={() => setPage('dashboard')} aria-current={page === 'dashboard' || !user ? 'page' : undefined}>
-                Dashboard
-              </Button>
-              <Button onClick={() => showDashboardSection('subscriptions')}>Subscriptions</Button>
-              <Button onClick={() => showDashboardSection('spending')}>Reports</Button>
-            </Box>}
             {user ? (
               <Button
                 id="account-menu-button" aria-label="Open account menu" aria-controls={menuAnchor ? 'account-menu' : undefined}
@@ -450,7 +441,7 @@ function App() {
         {loading && <Typography role="status">Checking your session…</Typography>}
         {!loading && !canShowDashboard && !accountError && <Typography>Log in or create an account to manage your subscriptions.</Typography>}
         {showAccountPage && (
-          <AccountPage key={`${user.id}:${user.name}:${user.email}`} user={user} service={accountService} onChanged={accountChanged} onBack={() => setPage('dashboard')} />
+          <AccountPage key={`${user.id}:${user.name}:${user.email}`} user={user} service={accountService} onChanged={accountChanged} onBack={showDashboard} />
         )}
         {canShowDashboard && !showAccountPage && (
           <>
