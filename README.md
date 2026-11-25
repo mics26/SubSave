@@ -7,15 +7,15 @@ The app includes the Material UI dashboard layout with sample subscriptions
 and browser-based account features for [issue #7](https://github.com/mics26/SubSave/issues/7).
 You can register, log in and out, edit your profile and login details, and try
 a simulated password recovery flow. Account details and login state survive
-refreshes using browser local storage. You can add monthly or yearly subscriptions
-with optional icons. The dashboard includes a category spending chart, annual
-expense estimate, renewal timeline, and relative renewal badges. Subscription
-editing, deletion, and persistence are still planned.
+refreshes using browser local storage. You can add, edit, and delete monthly or
+yearly subscriptions with optional icons. The dashboard updates its category
+spending chart, annual estimate, renewal timeline, and badges when records change.
+Subscription changes live in memory until MySQL persistence is connected.
 
 ## Planned features
 
 - Highlight subscription cards in red as their renewal dates approach.
-- Edit and delete subscriptions, and save them per account in MySQL.
+- Save subscriptions per account in MySQL.
 
 See [dashboard verification](tests/dashboard.md) for the UI refresh checks.
 

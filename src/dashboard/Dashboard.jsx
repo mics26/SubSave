@@ -4,7 +4,7 @@ import {
   AccountBalanceWalletOutlined, AddRounded, EventRepeatOutlined,
   LightbulbOutlined, SubscriptionsOutlined,
 } from '@mui/icons-material';
-import { buildDashboard, formatMoney } from './dashboardModel.js';
+import { buildDashboard, formatCalendarDate, formatMoney } from './dashboardModel.js';
 import { getSubscriptionIcon } from '../subscriptions/presetIcons.js';
 import './dashboard.css';
 
@@ -14,7 +14,7 @@ function RenewalBadge({ status, date }) {
   return (
     <span className={`renewal-badge renewal-badge--${status.tone}`}>
       <span className="renewal-dot" aria-hidden="true" />
-      {date && <><time dateTime={`${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`}>{formatDate(date)}</time><span aria-hidden="true"> · </span></>}
+      {date && <><time dateTime={formatCalendarDate(date)}>{formatDate(date)}</time><span aria-hidden="true"> · </span></>}
       {status.label}
     </span>
   );
@@ -55,7 +55,7 @@ function SpendChart({ categories, total }) {
   );
 }
 
-export default function Dashboard({ subscriptions, onAddSubscription }) {
+export default function Dashboard({ subscriptions, onAddSubscription, onEditSubscription, onDeleteSubscription }) {
   const [today, setToday] = useState(() => new Date());
   useEffect(() => {
     // Refresh relative dates at local midnight, including daylight-saving changes.
@@ -107,6 +107,10 @@ export default function Dashboard({ subscriptions, onAddSubscription }) {
                   <div className="subscription-price"><strong>{formatMoney(sub.cost)}</strong><span>{sub.billingCycle === 'Yearly' ? 'per year' : 'per month'}</span></div>
                 </div>
                 <div className="subscription-renewal"><span>Renewal date</span><RenewalBadge status={sub.status} date={sub.date} /></div>
+                <div className="subscription-actions">
+                  <Button size="small" color="inherit" aria-label={`Edit ${sub.name}`} onClick={() => onEditSubscription(sub)}>Edit</Button>
+                  <Button size="small" color="error" aria-label={`Delete ${sub.name}`} onClick={() => onDeleteSubscription(sub)}>Delete</Button>
+                </div>
               </article>
             ))}
           </div>

@@ -14,6 +14,13 @@ export const formatMoney = (amount) => new Intl.NumberFormat('en-PH', {
   style: 'currency', currency: 'PHP', minimumFractionDigits: 2, maximumFractionDigits: 2,
 }).format(amount);
 
+export function formatCalendarDate(date) {
+  const year = String(date.getFullYear()).padStart(4, '0');
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 export function parseRenewalDate(value) {
   // Support legacy formatted dates and ISO date-only records.
   const iso = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
