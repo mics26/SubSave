@@ -1,22 +1,7 @@
-import { AccountError } from './accountFields.js';
+import { requestJson } from '../api/requestJson.js';
 
 async function requestAccount(path, method = 'GET', data) {
-  const options = { method, credentials: 'same-origin' };
-  if (data !== undefined) {
-    options.headers = { 'Content-Type': 'application/json' };
-    options.body = JSON.stringify(data);
-  }
-  let response;
-  let result;
-  try {
-    response = await fetch('/api/auth/' + path, options);
-    result = await response.json();
-  } catch {
-    throw new AccountError('Could not reach the account service. Please try again.');
-  }
-  if (!response.ok) {
-    throw new AccountError(result.message || 'The account service is unavailable.', result.fields, response.status);
-  }
+  const result = await requestJson('/api/auth/' + path, { method, data, service: 'account' });
   return result.user;
 }
 

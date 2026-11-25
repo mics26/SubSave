@@ -38,6 +38,7 @@ import { ACCOUNT_STORAGE_KEY, createAccountService } from './accounts/accountSer
 import { serverAccountService } from './accounts/serverAccountService.js';
 import { getSubscriptionIcon, PRESET_ICONS } from './subscriptions/presetIcons.js';
 import { DEMO_OWNER_ID, SAMPLE_SUBSCRIPTIONS } from './subscriptions/sampleSubscriptions.js';
+import { serverSubscriptionService } from './subscriptions/serverSubscriptionService.js';
 import {
   BILLING_CYCLES,
   MAX_SUBSCRIPTION_ICON_BYTES,
@@ -105,6 +106,8 @@ function App() {
   const [menuAnchor, setMenuAnchor] = useState(null);
   const [notification, setNotification] = useState(null);
   const [subscriptions, setSubscriptions] = useState(() => useServerAccounts ? [] : SAMPLE_SUBSCRIPTIONS);
+  const [subscriptionLoad, setSubscriptionLoad] = useState({ loading: false, error: null });
+  const [subscriptionWrite, setSubscriptionWrite] = useState({ saving: false, error: '' });
   const [subscriptionAction, setSubscriptionAction] = useState(null);
   const [formData, setFormData] = useState(INITIAL_FORM_STATE);
   const [errors, setErrors] = useState({});
@@ -113,7 +116,10 @@ function App() {
   const iconReadRef = useRef(0);
   const accountRequestRef = useRef(0);
   const serverAccountIdRef = useRef(null);
+  const subscriptionReadRef = useRef(0);
+  const subscriptionWriteRef = useRef(null);
   const canShowDashboard = !useServerAccounts || Boolean(user);
+  const showAccountPage = Boolean(user && page === 'account');
   const isEditing = subscriptionAction?.type === 'edit';
   const isDeleting = subscriptionAction?.type === 'delete';
 
@@ -125,18 +131,38 @@ function App() {
     if (fileInputRef.current) fileInputRef.current.value = '';
   }, []);
 
+  const loadServerSubscriptions = useCallback((accountId) => {
+    const readId = ++subscriptionReadRef.current;
+    setSubscriptionLoad({ loading: true, error: null });
+    serverSubscriptionService.list(accountId).then(
+      (records) => {
+        if (readId !== subscriptionReadRef.current) return;
+        setSubscriptions(records);
+        setSubscriptionLoad({ loading: false, error: null });
+      },
+      (error) => {
+        if (readId === subscriptionReadRef.current) setSubscriptionLoad({ loading: false, error });
+      },
+    );
+  }, []);
+
   const applyAccount = useCallback((nextAccount) => {
     const accountId = nextAccount.user?.id ?? null;
     if (useServerAccounts && serverAccountIdRef.current !== accountId) {
       serverAccountIdRef.current = accountId;
+      subscriptionReadRef.current += 1;
+      subscriptionWriteRef.current = null;
       setSubscriptions([]);
+      setSubscriptionWrite({ saving: false, error: '' });
       setSubscriptionAction(null);
       resetForm();
       setMenuAnchor(null);
       setPage('dashboard');
+      if (accountId) loadServerSubscriptions(accountId);
+      else setSubscriptionLoad({ loading: false, error: null });
     }
     setAccount(nextAccount);
-  }, [resetForm]);
+  }, [loadServerSubscriptions, resetForm]);
 
   const refreshServerAccount = useCallback(() => {
     const requestId = ++accountRequestRef.current;
@@ -208,6 +234,7 @@ function App() {
   }
 
   const handleOpenModal = (subscription) => {
+    setSubscriptionWrite({ saving: false, error: '' });
     if (!subscription) {
       resetForm();
       setSubscriptionAction({ type: 'add' });
@@ -227,6 +254,36 @@ function App() {
     resetForm();
     setSubscriptionAction(null);
   };
+
+  const handleOpenDeleteModal = ({ id, name }) => {
+    setSubscriptionWrite({ saving: false, error: '' });
+    setSubscriptionAction({ type: 'delete', id, name });
+  };
+
+  async function persistSubscription(request, updateRecords) {
+    const accountId = serverAccountIdRef.current;
+    if (!accountId || subscriptionWriteRef.current) return;
+    const writeId = Symbol();
+    subscriptionWriteRef.current = writeId;
+    setSubscriptionWrite({ saving: true, error: '' });
+    let message = '';
+    try {
+      const record = await request(accountId);
+      if (subscriptionWriteRef.current !== writeId) return;
+      setSubscriptions((records) => updateRecords(records, record));
+      handleCloseModal();
+    } catch (error) {
+      if (subscriptionWriteRef.current !== writeId) return;
+      message = error.message;
+      if (error.status === 401) refreshServerAccount();
+      if (error.status === 404) loadServerSubscriptions(accountId);
+    } finally {
+      if (subscriptionWriteRef.current === writeId) {
+        subscriptionWriteRef.current = null;
+        setSubscriptionWrite({ saving: false, error: message });
+      }
+    }
+  }
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -285,7 +342,7 @@ function App() {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (isReadingIcon) return;
+    if (isReadingIcon || subscriptionWriteRef.current) return;
 
     const fields = {
       name: formData.name.trim(),
@@ -301,23 +358,31 @@ function App() {
     setErrors(validationErrors);
     if (Object.keys(validationErrors).length) return;
 
-    if (isEditing) {
-      const { id } = subscriptionAction;
-      setSubscriptions((prev) => prev.map((subscription) => (
-        subscription.id === id ? { ...subscription, ...fields } : subscription
-      )));
-    } else {
-      const ownerId = useServerAccounts ? user.id : DEMO_OWNER_ID;
-      const newSubscription = { ...fields, id: crypto.randomUUID(), ownerId };
-      setSubscriptions((prev) => [...prev, newSubscription]);
+    const updateRecords = (records, saved) => isEditing
+      ? records.map((record) => (record.id === saved.id ? { ...record, ...saved } : record))
+      : [...records, saved];
+    const editingId = isEditing ? subscriptionAction.id : null;
+    if (useServerAccounts) {
+      const request = editingId
+        ? (accountId) => serverSubscriptionService.edit(accountId, editingId, fields)
+        : (accountId) => serverSubscriptionService.add(accountId, fields);
+      void persistSubscription(request, updateRecords);
+      return;
     }
+    const saved = { ...fields, id: editingId ?? crypto.randomUUID(), ownerId: DEMO_OWNER_ID };
+    setSubscriptions((records) => updateRecords(records, saved));
     handleCloseModal();
   };
 
   const handleDeleteSubscription = () => {
     if (!isDeleting) return;
     const { id } = subscriptionAction;
-    setSubscriptions((prev) => prev.filter((subscription) => subscription.id !== id));
+    const removeRecord = (records) => records.filter((subscription) => subscription.id !== id);
+    if (useServerAccounts) {
+      void persistSubscription((accountId) => serverSubscriptionService.delete(accountId, id), removeRecord);
+      return;
+    }
+    setSubscriptions(removeRecord);
     setSubscriptionAction(null);
   };
 
@@ -384,16 +449,30 @@ function App() {
         {accountError && <Alert severity="error" sx={{ mb: 3 }} action={<Button color="inherit" onClick={refreshAccount}>Retry</Button>}>{accountError}</Alert>}
         {loading && <Typography role="status">Checking your session…</Typography>}
         {!loading && !canShowDashboard && !accountError && <Typography>Log in or create an account to manage your subscriptions.</Typography>}
-        {canShowDashboard && (page === 'account' && user ? (
+        {showAccountPage && (
           <AccountPage key={`${user.id}:${user.name}:${user.email}`} user={user} service={accountService} onChanged={accountChanged} onBack={() => setPage('dashboard')} />
-        ) : (
-          <Dashboard
-            subscriptions={subscriptions}
-            onAddSubscription={() => handleOpenModal()}
-            onEditSubscription={handleOpenModal}
-            onDeleteSubscription={({ id, name }) => setSubscriptionAction({ type: 'delete', id, name })}
-          />
-        ))}
+        )}
+        {canShowDashboard && !showAccountPage && (
+          <>
+            {subscriptionLoad.loading && <Typography role="status">Loading subscriptions…</Typography>}
+            {subscriptionLoad.error && (
+              <Alert severity="error" action={<Button color="inherit" onClick={() => {
+                if (subscriptionLoad.error.status === 401) refreshServerAccount();
+                else loadServerSubscriptions(user.id);
+              }}>Retry</Button>}>
+                {subscriptionLoad.error.message}
+              </Alert>
+            )}
+            {!subscriptionLoad.loading && !subscriptionLoad.error && (
+              <Dashboard
+                subscriptions={subscriptions}
+                onAddSubscription={() => handleOpenModal()}
+                onEditSubscription={handleOpenModal}
+                onDeleteSubscription={handleOpenDeleteModal}
+              />
+            )}
+          </>
+        )}
       </Container>
       {dialog && <AccountDialog initialMode={dialog} service={accountService} onClose={closeDialog} onChanged={accountChanged} allowRecovery={!useServerAccounts} />}
       <Snackbar open={Boolean(notification)} autoHideDuration={6000} onClose={(_, reason) => { if (reason !== 'clickaway') setNotification(null); }}>
@@ -402,7 +481,7 @@ function App() {
 
       <Dialog
         open={subscriptionAction !== null && !isDeleting}
-        onClose={handleCloseModal}
+        onClose={subscriptionWrite.saving ? undefined : handleCloseModal}
         aria-labelledby="subscription-form-title"
         fullWidth
         maxWidth="xs"
@@ -410,15 +489,17 @@ function App() {
         <DialogTitle id="subscription-form-title" sx={{ fontWeight: 700, pb: 1 }}>
           {isEditing ? 'Edit Subscription' : 'Add New Subscription'}
         </DialogTitle>
-        <Box component="form" onSubmit={handleSubmit} noValidate>
+        <Box component="form" onSubmit={handleSubmit} noValidate aria-busy={subscriptionWrite.saving}>
           <DialogContent
             sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}
           >
+            {subscriptionWrite.error && <Alert severity="error">{subscriptionWrite.error}</Alert>}
             <TextField
               label="Subscription Name"
               name="name"
               placeholder="e.g., Canva Pro"
               value={formData.name}
+              disabled={subscriptionWrite.saving}
               onChange={handleInputChange}
               error={Boolean(errors.name)}
               helperText={errors.name}
@@ -432,6 +513,7 @@ function App() {
               name="category"
               select
               value={formData.category}
+              disabled={subscriptionWrite.saving}
               onChange={handleInputChange}
               error={Boolean(errors.category)}
               helperText={errors.category}
@@ -448,6 +530,7 @@ function App() {
                 type="number"
                 placeholder="0.00"
                 value={formData.cost}
+                disabled={subscriptionWrite.saving}
                 onChange={handleInputChange}
                 error={Boolean(errors.cost)}
                 helperText={errors.cost}
@@ -462,6 +545,7 @@ function App() {
                 name="billingCycle"
                 select
                 value={formData.billingCycle}
+                disabled={subscriptionWrite.saving}
                 onChange={handleInputChange}
                 error={Boolean(errors.billingCycle)}
                 helperText={errors.billingCycle}
@@ -478,6 +562,7 @@ function App() {
               name="nextRenewal"
               type="date"
               value={formData.nextRenewal}
+              disabled={subscriptionWrite.saving}
               onChange={handleInputChange}
               error={Boolean(errors.nextRenewal)}
               helperText={errors.nextRenewal}
@@ -493,6 +578,7 @@ function App() {
                 {[{ id: 'auto', label: 'Automatic' }, ...PRESET_ICONS, { id: 'none', label: 'No icon' }].map((preset) => (
                   <Button key={preset.id} type="button" aria-pressed={formData.iconPreset === preset.id}
                     onClick={() => handlePresetIcon(preset.id)} variant="outlined" size="small"
+                    disabled={subscriptionWrite.saving}
                     startIcon={preset.src ? <Box component="img" src={preset.src} alt="" sx={{ width: 20, height: 20, objectFit: 'contain' }} /> : undefined}
                     sx={{ justifyContent: 'flex-start', px: 1.5, py: 1, borderRadius: 2, color: formData.iconPreset === preset.id ? 'primary.dark' : 'text.secondary',
                       borderColor: formData.iconPreset === preset.id ? 'primary.main' : 'divider', bgcolor: formData.iconPreset === preset.id ? 'primary.light' : 'transparent' }}>
@@ -535,6 +621,7 @@ function App() {
                   component="label"
                   variant="outlined"
                   size="small"
+                  disabled={subscriptionWrite.saving}
                   startIcon={<CloudUploadOutlined />}
                   sx={{ flexGrow: 1 }}
                 >
@@ -542,6 +629,7 @@ function App() {
                   <input
                     ref={fileInputRef}
                     type="file"
+                    disabled={subscriptionWrite.saving}
                     accept={CUSTOM_ICON_TYPES.join(',')}
                     hidden
                     onChange={handleIconUpload}
@@ -552,6 +640,7 @@ function App() {
                   <Button
                     color="error"
                     size="small"
+                    disabled={subscriptionWrite.saving}
                     onClick={() => handlePresetIcon('none')}
                     sx={{ minWidth: 'auto', p: 0.75 }}
                     aria-label="Remove selected icon"
@@ -576,11 +665,11 @@ function App() {
           </DialogContent>
 
           <DialogActions sx={{ px: 3, pb: 2.5 }}>
-            <Button onClick={handleCloseModal} sx={{ color: 'text.secondary' }}>
+            <Button onClick={handleCloseModal} disabled={subscriptionWrite.saving} sx={{ color: 'text.secondary' }}>
               Cancel
             </Button>
-            <Button type="submit" variant="contained" disableElevation disabled={isReadingIcon}>
-              Save Subscription
+            <Button type="submit" variant="contained" disableElevation disabled={isReadingIcon || subscriptionWrite.saving}>
+              {subscriptionWrite.saving ? 'Saving…' : 'Save Subscription'}
             </Button>
           </DialogActions>
         </Box>
@@ -588,7 +677,7 @@ function App() {
 
       <Dialog
         open={isDeleting}
-        onClose={() => setSubscriptionAction(null)}
+        onClose={subscriptionWrite.saving ? undefined : handleCloseModal}
         aria-labelledby="delete-subscription-title"
         aria-describedby="delete-subscription-description"
       >
@@ -597,10 +686,13 @@ function App() {
           <DialogContentText id="delete-subscription-description" sx={{ overflowWrap: 'anywhere' }}>
             Remove <strong>{subscriptionAction?.name}</strong> from your subscriptions?
           </DialogContentText>
+          {subscriptionWrite.error && <Alert severity="error" sx={{ mt: 2 }}>{subscriptionWrite.error}</Alert>}
         </DialogContent>
         <DialogActions>
-          <Button autoFocus onClick={() => setSubscriptionAction(null)}>Cancel</Button>
-          <Button color="error" variant="contained" onClick={handleDeleteSubscription}>Delete Subscription</Button>
+          <Button autoFocus onClick={handleCloseModal} disabled={subscriptionWrite.saving}>Cancel</Button>
+          <Button color="error" variant="contained" onClick={handleDeleteSubscription} disabled={subscriptionWrite.saving}>
+            {subscriptionWrite.saving ? 'Deleting…' : 'Delete Subscription'}
+          </Button>
         </DialogActions>
       </Dialog>
     </ThemeProvider>

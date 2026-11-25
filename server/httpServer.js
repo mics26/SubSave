@@ -1,9 +1,12 @@
 import { createServer } from 'node:http';
-import { AccountError } from '../../src/accounts/accountFields.js';
-import { createAccountStore, SESSION_MAX_AGE } from './accountStore.js';
+import { AccountError } from '../src/accounts/accountFields.js';
+import { MAX_SUBSCRIPTION_ICON_BYTES } from '../src/subscriptions/subscriptionRecord.js';
+import { createAccountStore, SESSION_MAX_AGE } from './auth/accountStore.js';
+import { createSubscriptionStore, SubscriptionInputError } from './subscriptions/subscriptionStore.js';
 
 const SESSION_COOKIE = 'subsave_session';
 const BODY_LIMIT = 4096;
+const SUBSCRIPTION_BODY_LIMIT = Math.ceil(MAX_SUBSCRIPTION_ICON_BYTES / 3) * 4 + BODY_LIMIT;
 
 export function readSessionToken(request) {
   const cookie = (request.headers.cookie ?? '').split(';').map((part) => part.trim())
@@ -28,17 +31,17 @@ function verifyOrigin(request) {
   }
 }
 
-async function readJson(request) {
+async function readJson(request, bodyLimit = BODY_LIMIT) {
   if (request.headers['content-type']?.split(';')[0].trim() !== 'application/json') {
-    throw new AccountError('Send the account details as JSON.', {}, 415);
+    throw new AccountError('Send the request as JSON.', {}, 415);
   }
   const chunks = [];
   let size = 0;
   for await (const chunk of request.iterator({ destroyOnReturn: false })) {
     size += chunk.length;
-    if (size > BODY_LIMIT) {
+    if (size > bodyLimit) {
       request.resume();
-      throw new AccountError('The account details are too large.', {}, 413);
+      throw new AccountError('The request is too large.', {}, 413);
     }
     chunks.push(chunk);
   }
@@ -48,10 +51,40 @@ async function readJson(request) {
   } catch {
     // The response uses the same message for invalid JSON and non-object bodies.
   }
-  throw new AccountError('Send valid account details.');
+  throw new AccountError('Send a valid JSON object.');
 }
 
-export function createAuthServer(database, { secureCookies = false } = {}) {
+async function handleSubscriptions(request, response, store, id) {
+  const method = request.method;
+  if (!id && method === 'GET') {
+    const subscriptions = await store.list();
+    response.end(JSON.stringify({ subscriptions }));
+    return;
+  }
+
+  verifyOrigin(request);
+  if (!id && method === 'POST') {
+    const subscription = await store.add(await readJson(request, SUBSCRIPTION_BODY_LIMIT));
+    response.statusCode = 201;
+    response.end(JSON.stringify({ subscription }));
+    return;
+  }
+  if (id && method === 'PUT') {
+    const subscription = await store.edit(id, await readJson(request, SUBSCRIPTION_BODY_LIMIT));
+    if (!subscription) throw new AccountError('Subscription not found.', {}, 404);
+    response.end(JSON.stringify({ subscription }));
+    return;
+  }
+  if (id && method === 'DELETE') {
+    if (!(await store.delete(id))) throw new AccountError('Subscription not found.', {}, 404);
+    response.statusCode = 204;
+    response.end();
+    return;
+  }
+  throw new AccountError('Method not allowed.', {}, 405);
+}
+
+export function createAppServer(database, { secureCookies = false } = {}) {
   const accounts = createAccountStore(database);
   const mutations = {
     'POST /api/auth/register': (token, data) => accounts.register(data, token),
@@ -67,8 +100,19 @@ export function createAuthServer(database, { secureCookies = false } = {}) {
     response.setHeader('Content-Type', 'application/json; charset=utf-8');
     response.setHeader('Cache-Control', 'no-store');
     const route = `${request.method} ${request.url}`;
+    const subscriptionPath = /^\/api\/subscriptions(?:\/([^/]+))?$/.exec(request.url.split('?')[0]);
     try {
       const token = readSessionToken(request);
+      if (subscriptionPath) {
+        const user = await accounts.currentAccount(token);
+        const expectedAccount = request.headers['x-subsave-account'];
+        if (!user || (expectedAccount !== undefined && expectedAccount !== user.id)) {
+          throw new AccountError('Your session changed. Log in again to continue.', {}, 401);
+        }
+        const store = createSubscriptionStore(database, user.id);
+        await handleSubscriptions(request, response, store, subscriptionPath[1]);
+        return;
+      }
       if (route === 'GET /api/auth/session') {
         const user = await accounts.currentAccount(token);
         response.end(JSON.stringify({ user }));
@@ -81,9 +125,14 @@ export function createAuthServer(database, { secureCookies = false } = {}) {
       response.statusCode = route === 'POST /api/auth/register' ? 201 : 200;
       response.end(JSON.stringify({ user }));
     } catch (error) {
-      const failure = error instanceof AccountError ? error :
-        new AccountError('The account service is unavailable. Please try again.', {}, 503);
-      if (failure !== error) console.error('Account API error:', error.code ?? error.name);
+      let failure = error;
+      if (error instanceof SubscriptionInputError) {
+        failure = new AccountError(error.message);
+      } else if (!(error instanceof AccountError)) {
+        const service = subscriptionPath ? 'subscription' : 'account';
+        console.error('SubSave API error:', error.code ?? error.name);
+        failure = new AccountError(`The ${service} service is unavailable. Please try again.`, {}, 503);
+      }
       response.statusCode = failure.status;
       response.end(JSON.stringify({ message: failure.message, fields: failure.fields }));
     }

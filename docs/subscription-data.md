@@ -28,7 +28,7 @@ The team can use [the shared sample subscriptions](../src/subscriptions/sampleSu
 
 ## Operations
 
-The [server-side store](../server/subscriptions/subscriptionStore.js) binds one authenticated account with `createSubscriptionStore(pool, accountId)`. DATA-01 and APP-03 can use the same signatures in their fixtures while the server integration is underway.
+The [server-side store](../server/subscriptions/subscriptionStore.js) binds one authenticated account with `createSubscriptionStore(pool, accountId)`.
 
 | Operation | Result |
 | --- | --- |
@@ -39,7 +39,9 @@ The [server-side store](../server/subscriptions/subscriptionStore.js) binds one 
 
 `input` contains the editable fields from the table. It excludes `id` and `ownerId`. Invalid input is rejected before a query runs. Account filters and prepared statements apply to every operation. An ID from another account and a missing ID return the same result on edit or delete.
 
-AUTH-01 must take the account ID from a verified server session before calling the store. Keep the MySQL connection and credentials on the server. MySQL enforces the foreign key and data constraints. The store enforces per-account access, so browser requests must pass through the authenticated server API. The `accounts` table currently reserves account IDs for AUTH-01. The existing browser demo stores local account data and keeps added subscriptions in memory. Server-backed sign-in and hooking the UI up to saved subscriptions belong to AUTH-01, DATA-01, and APP-03.
+Server mode uses the AUTH-01 session cookie to scope every request to the signed-in account. The API provides `GET` and `POST` at `/api/subscriptions` and `PUT` and `DELETE` at `/api/subscriptions/{id}`. Responses contain `{ subscriptions }` for a list or `{ subscription }` for an add or edit. Delete returns `204`. Requests without a valid session return `401`. An edit or delete outside the account's list returns `404`.
+
+The dashboard applies changes once MySQL confirms the request. Browser demo subscriptions live in memory. Keep the MySQL connection and credentials on the server.
 
 ## View project data in MySQL Workbench
 
@@ -64,3 +66,5 @@ Remove-Item Env:SUBSAVE_MYSQL_TEST_URL
 ```
 
 The test creates two temporary application accounts and verifies that each can work with its own records, cannot edit or delete the other account’s records, and cannot set a different owner when adding or editing. It cleans up those accounts and verifies the foreign key, cascade, and cost constraint.
+
+With both migrations applied, `npm run test:subscriptions` uses the same test URL to check the authenticated HTTP operations, including persistence after signing out and back in.
