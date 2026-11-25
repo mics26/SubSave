@@ -25,6 +25,8 @@ import {
 } from '@mui/material';
 import {
   AutorenewRounded,
+  CalendarMonthOutlined,
+  CheckRounded,
   CloudUploadOutlined,
   DeleteOutlineRounded,
   LogoutRounded,
@@ -90,6 +92,7 @@ function App() {
   const [dialog, setDialog] = useState(null);
   const [page, setPage] = useState('dashboard');
   const [menuAnchor, setMenuAnchor] = useState(null);
+  const [demoDate, setDemoDate] = useState(null);
   const [notification, setNotification] = useState(null);
   const [subscriptions, setSubscriptions] = useState([]);
   const [subscriptionLoad, setSubscriptionLoad] = useState({ loading: false, error: null });
@@ -138,6 +141,7 @@ function App() {
       subscriptionReadRef.current += 1;
       subscriptionWriteRef.current = null;
       setSubscriptions([]);
+      setDemoDate(null);
       setSubscriptionWrite({ saving: false, error: '' });
       setSubscriptionAction(null);
       resetForm();
@@ -389,6 +393,16 @@ function App() {
         <MenuItem onClick={() => { setPage('account'); setMenuAnchor(null); }}>
           <ListItemIcon><PersonOutlineRounded fontSize="small" /></ListItemIcon>Your account
         </MenuItem>
+        <MenuItem role="menuitemcheckbox" aria-checked={demoDate !== null} onClick={() => {
+          setDemoDate((date) => date === null ? '' : null);
+          setMenuAnchor(null);
+          showDashboard();
+        }}>
+          <ListItemIcon>
+            {demoDate === null ? <CalendarMonthOutlined fontSize="small" /> : <CheckRounded fontSize="small" />}
+          </ListItemIcon>
+          Demo Mode
+        </MenuItem>
         <MenuItem onClick={logout}><ListItemIcon><LogoutRounded fontSize="small" /></ListItemIcon>Log out</MenuItem>
       </Menu>
 
@@ -414,6 +428,8 @@ function App() {
             {!subscriptionLoad.loading && !subscriptionLoad.error && (
               <Dashboard
                 subscriptions={subscriptions}
+                demoDate={demoDate}
+                onDemoDateChange={setDemoDate}
                 onAddSubscription={() => handleOpenModal()}
                 onEditSubscription={handleOpenModal}
                 onDeleteSubscription={handleOpenDeleteModal}

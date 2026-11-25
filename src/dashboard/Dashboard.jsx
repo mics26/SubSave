@@ -1,10 +1,10 @@
 import { useEffect, useId, useState } from 'react';
-import { Avatar, Button } from '@mui/material';
+import { Avatar, Button, Stack, TextField, Typography } from '@mui/material';
 import {
   AccountBalanceWalletOutlined, AddRounded, EventRepeatOutlined,
   LightbulbOutlined, SubscriptionsOutlined,
 } from '@mui/icons-material';
-import { buildDashboard, formatCalendarDate, formatMoney } from './dashboardModel.js';
+import { buildDashboard, formatCalendarDate, formatMoney, parseRenewalDate } from './dashboardModel.js';
 import { getSubscriptionIcon } from '../subscriptions/presetIcons.js';
 import './dashboard.css';
 
@@ -55,7 +55,9 @@ function SpendChart({ categories, total }) {
   );
 }
 
-export default function Dashboard({ subscriptions, onAddSubscription, onEditSubscription, onDeleteSubscription }) {
+export default function Dashboard({
+  subscriptions, demoDate = null, onDemoDateChange, onAddSubscription, onEditSubscription, onDeleteSubscription,
+}) {
   const [today, setToday] = useState(() => new Date());
   useEffect(() => {
     // Refresh relative dates at local midnight, including daylight-saving changes.
@@ -63,18 +65,33 @@ export default function Dashboard({ subscriptions, onAddSubscription, onEditSubs
     const timer = window.setTimeout(() => setToday(new Date()), Math.max(1000, nextDay.getTime() - Date.now()));
     return () => window.clearTimeout(timer);
   }, [today]);
-  const { entries, upcoming, overdueCount, totalMonthly, nextUpcoming, categories, largest } = buildDashboard(subscriptions, today);
+  const dashboardDate = parseRenewalDate(demoDate ?? '') ?? today;
+  const { entries, upcoming, overdueCount, totalMonthly, nextUpcoming, categories, largest } = buildDashboard(subscriptions, dashboardDate);
 
   return (
     <div className="dashboard">
       <header className="dashboard-heading">
         <div>
-          <p className="dashboard-eyebrow">{today.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</p>
+          <p className="dashboard-eyebrow">
+            {dashboardDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+          </p>
           <h1>Dashboard Overview</h1>
           <p className="dashboard-subtitle">Track your active subscriptions, monthly costs, and upcoming renewals.</p>
         </div>
         <Button className="add-subscription-button" variant="contained" startIcon={<AddRounded />} onClick={onAddSubscription}>Add Subscription</Button>
       </header>
+
+      {demoDate !== null && (
+        <Stack component="section" className="dashboard-card" aria-labelledby="demo-date-heading"
+          direction={{ xs: 'column', sm: 'row' }} spacing={2}
+          sx={{ p: 2.5, mb: 3, alignItems: { xs: 'stretch', sm: 'center' } }}>
+          <Typography component="h2" id="demo-date-heading" fontWeight={600} sx={{ flex: 1 }}>Demo Mode</Typography>
+          <TextField type="date" size="small" label="Simulated date" value={demoDate}
+            onChange={(event) => onDemoDateChange(event.target.value)}
+            slotProps={{ inputLabel: { shrink: true }, htmlInput: { max: '9999-12-31' } }} />
+          <Button variant="outlined" disabled={!demoDate} onClick={() => onDemoDateChange('')}>Reset to today</Button>
+        </Stack>
+      )}
 
       <section className="dashboard-stats" aria-label="Subscription overview">
         <article className="dashboard-card dashboard-stat expense-hero">
