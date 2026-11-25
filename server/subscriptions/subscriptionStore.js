@@ -7,31 +7,33 @@ const DATA_URL = /^data:image\/(?:png|jpeg);base64,([A-Za-z0-9+/]+={0,2})$/;
 const MAX_ICON_DATA_URL_LENGTH = Math.ceil(MAX_SUBSCRIPTION_ICON_BYTES / 3) * 4 + 'data:image/jpeg;base64,'.length;
 const ICON_PRESETS = new Set(['auto', 'none', ...PRESET_ICONS.map(({ id }) => id)]);
 
+export class SubscriptionInputError extends TypeError {}
+
 function normalizeId(value, label) {
   if (typeof value !== 'string' || !UUID.test(value)) {
-    throw new TypeError(`${label} must be a UUID.`);
+    throw new SubscriptionInputError(`${label} must be a UUID.`);
   }
   return value.toLowerCase();
 }
 
 function validateSubscription(input) {
   if (!input || typeof input !== 'object' || Array.isArray(input)) {
-    throw new TypeError('Subscription details must be an object.');
+    throw new SubscriptionInputError('Subscription details must be an object.');
   }
   if ('id' in input || 'ownerId' in input) {
-    throw new TypeError('The subscription ID and owner cannot be set in the subscription details.');
+    throw new SubscriptionInputError('The subscription ID and owner cannot be set in the subscription details.');
   }
 
   const { name, category, cost, billingCycle, nextRenewal, iconPreset = 'auto', icon = null } = input;
   const [fieldError] = Object.values(validateSubscriptionFields(input));
-  if (fieldError) throw new TypeError(fieldError);
+  if (fieldError) throw new SubscriptionInputError(fieldError);
   if (iconPreset === 'custom') {
     const payload = typeof icon === 'string' && icon.length <= MAX_ICON_DATA_URL_LENGTH ? DATA_URL.exec(icon)?.[1] : undefined;
     if (!payload || payload.length % 4 !== 0 || Buffer.byteLength(payload, 'base64') > MAX_SUBSCRIPTION_ICON_BYTES) {
-      throw new TypeError('Custom icons must be PNG or JPEG data URLs up to 1 MiB.');
+      throw new SubscriptionInputError('Custom icons must be PNG or JPEG data URLs up to 1 MiB.');
     }
   } else if (!ICON_PRESETS.has(iconPreset) || icon !== null) {
-    throw new TypeError('Choose a supported icon preset or a custom icon.');
+    throw new SubscriptionInputError('Choose a supported icon preset or a custom icon.');
   }
 
   return { name: name.trim(), category, cost, billingCycle, nextRenewal, iconPreset, icon };

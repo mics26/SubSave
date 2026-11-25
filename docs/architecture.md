@@ -9,8 +9,8 @@ styles. Vite serves the app during development and builds static assets into
 `dist/` for production. Oxlint checks the JavaScript and JSX source.
 
 The dashboard manages subscriptions in React state. Demo mode starts with
-shared sample subscriptions. Server mode starts with an empty list for each
-account and clears that list when the account changes. Google Fonts provides
+shared sample subscriptions. Server mode loads saved subscriptions for the
+active account and clears the list when the account changes. Google Fonts provides
 DM Sans and Bricolage Grotesque, with system fallbacks when unavailable.
 
 ## Server accounts (AUTH-01)
@@ -76,6 +76,6 @@ covers dates, sorting, and totals.
 
 DATA-03 defines the shared record and MySQL schema. The subscription store scopes
 all queries to an account ID supplied by the server. AUTH-01 establishes that
-identity in a server session. DATA-01 will connect saved subscription operations,
-and APP-03 will load the account’s records into the dashboard. See the
+identity in a server session. DATA-01 connects the dashboard’s subscription
+operations to MySQL. See the
 [subscription data contract and migration instructions](subscription-data.md).
