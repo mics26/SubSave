@@ -8,10 +8,23 @@ SubSave is a browser application built with React and JavaScript using Vite.
 styles. Vite serves the app during development and builds static assets into
 `dist/` for production. Oxlint checks the JavaScript and JSX source.
 
-The browser currently runs without an HTTP API or server authentication. The
-dashboard uses shared sample subscriptions and supports additions in React state. Google Fonts
-provides DM Sans and Bricolage Grotesque, with system fallbacks when unavailable.
-No environment variables are required to start the app.
+The dashboard manages subscriptions in React state. Demo mode starts with
+shared sample subscriptions. Server mode starts with an empty list for each
+account and clears that list when the account changes. Google Fonts provides
+DM Sans and Bricolage Grotesque, with system fallbacks when unavailable.
+
+## Server accounts (AUTH-01)
+
+`npm run api` starts a Node.js HTTP server. Vite proxies `/api` requests to it.
+Migration 002 adds credentials and sessions linked to the existing MySQL account
+IDs. Passwords use scrypt with a per-account random salt. The browser receives
+an HttpOnly cookie, and MySQL stores the hash of its session token. Sessions
+expire after seven days and the server revokes them at sign-out.
+
+The API exposes registration, login, logout, session restore, and profile
+updates under `/api/auth`. For DATA-01, use the stable `user.id` returned by
+`createAccountStore(...).currentAccount(readSessionToken(request))` on the server
+to scope the subscription store.
 
 ## Demo accounts (issue #7)
 
@@ -62,7 +75,7 @@ covers dates, sorting, and totals.
 ## Subscription data flow
 
 DATA-03 defines the shared record and MySQL schema. The subscription store scopes
-all queries to an account ID supplied by the server. AUTH-01 will establish that
-identity in a server session, DATA-01 will connect saved subscription operations,
+all queries to an account ID supplied by the server. AUTH-01 establishes that
+identity in a server session. DATA-01 will connect saved subscription operations,
 and APP-03 will load the account’s records into the dashboard. See the
 [subscription data contract and migration instructions](subscription-data.md).

@@ -11,7 +11,7 @@ const TITLES = {
   recover: 'Forgot your password?', reset: 'Set a new password',
 };
 
-export default function AccountDialog({ initialMode, service, onClose, onChanged }) {
+export default function AccountDialog({ initialMode, service, onClose, onChanged, allowRecovery = true }) {
   const [mode, setMode] = useState(initialMode);
   const [values, setValues] = useState({ name: '', email: '', password: '', confirmPassword: '', code: '' });
   const [fields, setFields] = useState({});
@@ -61,12 +61,12 @@ export default function AccountDialog({ initialMode, service, onClose, onChanged
     setNotice('');
     try {
       if (mode === 'register') {
-        await service.register(values);
-        onChanged('Account created. You’re logged in.');
+        const user = await service.register(values);
+        onChanged('Account created. You’re logged in.', user);
         onClose();
       } else if (mode === 'login') {
-        await service.login(values);
-        onChanged('You’re logged in. Welcome back!');
+        const user = await service.login(values);
+        onChanged('You’re logged in. Welcome back!', user);
         onClose();
       } else if (mode === 'recover') {
         const code = service.requestReset(values.email);
@@ -135,7 +135,7 @@ export default function AccountDialog({ initialMode, service, onClose, onChanged
             {(mode === 'register' || mode === 'reset') && (
               <PasswordField {...input('confirmPassword')} label="Confirm password" autoComplete="new-password" required />
             )}
-            {mode === 'login' && (
+            {mode === 'login' && allowRecovery && (
               <Button onClick={() => changeMode('recover')} disabled={busy} sx={{ alignSelf: 'flex-end', mt: '-8px !important' }}>Forgot password?</Button>
             )}
             <Button type="submit" variant="contained" size="large" disableElevation disabled={busy}>

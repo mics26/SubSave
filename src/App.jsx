@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react';
+import { useCallback, useEffect, useState, useRef } from 'react';
 import {
   Alert,
   AppBar,
@@ -35,6 +35,7 @@ import { formatCalendarDate } from './dashboard/dashboardModel.js';
 import AccountDialog from './accounts/AccountDialog.jsx';
 import AccountPage from './accounts/AccountPage.jsx';
 import { ACCOUNT_STORAGE_KEY, createAccountService } from './accounts/accountService.js';
+import { serverAccountService } from './accounts/serverAccountService.js';
 import { getSubscriptionIcon, PRESET_ICONS } from './subscriptions/presetIcons.js';
 import { DEMO_OWNER_ID, SAMPLE_SUBSCRIPTIONS } from './subscriptions/sampleSubscriptions.js';
 import {
@@ -44,9 +45,10 @@ import {
   validateSubscriptionFields,
 } from './subscriptions/subscriptionRecord.js';
 
-const accountService = createAccountService();
+const useServerAccounts = import.meta.env.VITE_SUBSAVE_AUTH_MODE === 'server';
+const accountService = useServerAccounts ? serverAccountService : createAccountService();
 
-function readAccount() {
+function readDemoAccount() {
   try {
     return { user: accountService.currentAccount(), error: '' };
   } catch (error) {
@@ -96,38 +98,102 @@ const INITIAL_FORM_STATE = {
 const CUSTOM_ICON_TYPES = ['image/png', 'image/jpeg'];
 
 function App() {
-  const [{ user, error: storageError }, setAccount] = useState(readAccount);
+  const [{ user, error: accountError, loading }, setAccount] = useState(() =>
+    useServerAccounts ? { user: null, error: '', loading: true } : readDemoAccount());
   const [dialog, setDialog] = useState(null);
   const [page, setPage] = useState('dashboard');
   const [menuAnchor, setMenuAnchor] = useState(null);
   const [notification, setNotification] = useState(null);
+  const [subscriptions, setSubscriptions] = useState(() => useServerAccounts ? [] : SAMPLE_SUBSCRIPTIONS);
+  const [subscriptionAction, setSubscriptionAction] = useState(null);
+  const [formData, setFormData] = useState(INITIAL_FORM_STATE);
+  const [errors, setErrors] = useState({});
+  const [isReadingIcon, setIsReadingIcon] = useState(false);
+  const fileInputRef = useRef(null);
+  const iconReadRef = useRef(0);
+  const accountRequestRef = useRef(0);
+  const serverAccountIdRef = useRef(null);
+  const canShowDashboard = !useServerAccounts || Boolean(user);
+  const isEditing = subscriptionAction?.type === 'edit';
+  const isDeleting = subscriptionAction?.type === 'delete';
+
+  const resetForm = useCallback((values = INITIAL_FORM_STATE) => {
+    iconReadRef.current += 1;
+    setIsReadingIcon(false);
+    setFormData(values);
+    setErrors({});
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  }, []);
+
+  const applyAccount = useCallback((nextAccount) => {
+    const accountId = nextAccount.user?.id ?? null;
+    if (useServerAccounts && serverAccountIdRef.current !== accountId) {
+      serverAccountIdRef.current = accountId;
+      setSubscriptions([]);
+      setSubscriptionAction(null);
+      resetForm();
+      setMenuAnchor(null);
+      setPage('dashboard');
+    }
+    setAccount(nextAccount);
+  }, [resetForm]);
+
+  const refreshServerAccount = useCallback(() => {
+    const requestId = ++accountRequestRef.current;
+    serverAccountService.currentAccount().then(
+      (nextUser) => {
+        if (requestId === accountRequestRef.current) applyAccount({ user: nextUser, error: '' });
+      },
+      (error) => {
+        if (requestId === accountRequestRef.current) applyAccount({ user: null, error: error.message });
+      },
+    );
+  }, [applyAccount]);
 
   useEffect(() => {
+    if (useServerAccounts) {
+      refreshServerAccount();
+      window.addEventListener('focus', refreshServerAccount);
+      return () => {
+        accountRequestRef.current += 1;
+        window.removeEventListener('focus', refreshServerAccount);
+      };
+    }
     function syncStorage(event) {
       if (event.key === ACCOUNT_STORAGE_KEY || event.key === null) {
-        setAccount(readAccount());
+        applyAccount(readDemoAccount());
         setMenuAnchor(null);
       }
     }
     window.addEventListener('storage', syncStorage);
     return () => window.removeEventListener('storage', syncStorage);
-  }, []);
+  }, [applyAccount, refreshServerAccount]);
 
-  function accountChanged(message) {
-    setAccount(readAccount());
+  function refreshAccount() {
+    if (useServerAccounts) refreshServerAccount();
+    else applyAccount(readDemoAccount());
+  }
+
+  function accountChanged(message, nextUser) {
+    if (nextUser === undefined) {
+      refreshAccount();
+    } else {
+      accountRequestRef.current += 1;
+      applyAccount({ user: nextUser, error: '' });
+    }
     if (message) setNotification({ severity: 'success', message });
   }
 
   function closeDialog() {
-    accountService.cancelRecovery();
+    accountService.cancelRecovery?.();
     setDialog(null);
   }
 
-  function logout() {
+  async function logout() {
     setMenuAnchor(null);
     try {
-      accountService.logout();
-      accountChanged('You’re logged out.');
+      await accountService.logout();
+      accountChanged('You’re logged out.', null);
       setPage('dashboard');
     } catch (error) {
       setNotification({ severity: 'error', message: error.message });
@@ -140,26 +206,6 @@ function App() {
       document.getElementById(section)?.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' });
     });
   }
-
-  const [subscriptions, setSubscriptions] = useState(SAMPLE_SUBSCRIPTIONS);
-  const [subscriptionAction, setSubscriptionAction] = useState(null);
-  const [formData, setFormData] = useState(INITIAL_FORM_STATE);
-  const [errors, setErrors] = useState({});
-  const [isReadingIcon, setIsReadingIcon] = useState(false);
-  const fileInputRef = useRef(null);
-  const iconReadRef = useRef(0);
-  const isEditing = subscriptionAction?.type === 'edit';
-  const isDeleting = subscriptionAction?.type === 'delete';
-
-  const resetForm = (values = INITIAL_FORM_STATE) => {
-    iconReadRef.current += 1;
-    setIsReadingIcon(false);
-    setFormData(values);
-    setErrors({});
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
-  };
 
   const handleOpenModal = (subscription) => {
     if (!subscription) {
@@ -261,7 +307,8 @@ function App() {
         subscription.id === id ? { ...subscription, ...fields } : subscription
       )));
     } else {
-      const newSubscription = { ...fields, id: crypto.randomUUID(), ownerId: DEMO_OWNER_ID };
+      const ownerId = useServerAccounts ? user.id : DEMO_OWNER_ID;
+      const newSubscription = { ...fields, id: crypto.randomUUID(), ownerId };
       setSubscriptions((prev) => [...prev, newSubscription]);
     }
     handleCloseModal();
@@ -298,13 +345,13 @@ function App() {
               </Typography>
             </Box>
 
-            <Box component="nav" aria-label="Main navigation" className="app-navigation">
+            {canShowDashboard && <Box component="nav" aria-label="Main navigation" className="app-navigation">
               <Button className={page === 'dashboard' || !user ? 'nav-active' : undefined} onClick={() => setPage('dashboard')} aria-current={page === 'dashboard' || !user ? 'page' : undefined}>
                 Dashboard
               </Button>
               <Button onClick={() => showDashboardSection('subscriptions')}>Subscriptions</Button>
               <Button onClick={() => showDashboardSection('spending')}>Reports</Button>
-            </Box>
+            </Box>}
             {user ? (
               <Button
                 id="account-menu-button" aria-label="Open account menu" aria-controls={menuAnchor ? 'account-menu' : undefined}
@@ -314,7 +361,7 @@ function App() {
                 <Avatar sx={{ width: 32, height: 32, bgcolor: 'primary.light', color: 'primary.dark', fontSize: 15 }}>{user.name.charAt(0).toUpperCase()}</Avatar>
                 <Box component="span" sx={{ display: { xs: 'none', sm: 'block' }, maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user.name}</Box>
               </Button>
-            ) : (
+            ) : !loading && (
               <Box className="app-auth-actions" sx={{ display: 'flex', gap: 0.5 }}>
                 <Button onClick={() => setDialog('login')}>Log in</Button>
                 <Button variant="contained" disableElevation onClick={() => setDialog('register')}>Create account</Button>
@@ -334,8 +381,10 @@ function App() {
 
       {/* Main Content */}
       <Container component="main" maxWidth={false} sx={{ maxWidth: 1180, pt: { xs: 3, sm: 4.5 }, pb: 8 }}>
-        {storageError && <Alert severity="error" sx={{ mb: 3 }} action={<Button color="inherit" onClick={() => setAccount(readAccount())}>Retry</Button>}>{storageError}</Alert>}
-        {page === 'account' && user ? (
+        {accountError && <Alert severity="error" sx={{ mb: 3 }} action={<Button color="inherit" onClick={refreshAccount}>Retry</Button>}>{accountError}</Alert>}
+        {loading && <Typography role="status">Checking your session…</Typography>}
+        {!loading && !canShowDashboard && !accountError && <Typography>Log in or create an account to manage your subscriptions.</Typography>}
+        {canShowDashboard && (page === 'account' && user ? (
           <AccountPage key={`${user.id}:${user.name}:${user.email}`} user={user} service={accountService} onChanged={accountChanged} onBack={() => setPage('dashboard')} />
         ) : (
           <Dashboard
@@ -344,9 +393,9 @@ function App() {
             onEditSubscription={handleOpenModal}
             onDeleteSubscription={({ id, name }) => setSubscriptionAction({ type: 'delete', id, name })}
           />
-        )}
+        ))}
       </Container>
-      {dialog && <AccountDialog initialMode={dialog} service={accountService} onClose={closeDialog} onChanged={accountChanged} />}
+      {dialog && <AccountDialog initialMode={dialog} service={accountService} onClose={closeDialog} onChanged={accountChanged} allowRecovery={!useServerAccounts} />}
       <Snackbar open={Boolean(notification)} autoHideDuration={6000} onClose={(_, reason) => { if (reason !== 'clickaway') setNotification(null); }}>
         {notification ? <Alert severity={notification.severity} variant="filled" onClose={() => setNotification(null)} sx={{ width: '100%' }}>{notification.message}</Alert> : undefined}
       </Snackbar>
