@@ -34,6 +34,8 @@ import AccountDialog from './accounts/AccountDialog.jsx';
 import AccountPage from './accounts/AccountPage.jsx';
 import { ACCOUNT_STORAGE_KEY, createAccountService } from './accounts/accountService.js';
 import { getSubscriptionIcon, PRESET_ICONS } from './subscriptions/presetIcons.js';
+import { DEMO_OWNER_ID, SAMPLE_SUBSCRIPTIONS } from './subscriptions/sampleSubscriptions.js';
+import { BILLING_CYCLES, SUBSCRIPTION_CATEGORIES } from './subscriptions/subscriptionRecord.js';
 
 const accountService = createAccountService();
 
@@ -74,49 +76,6 @@ const greenTheme = createTheme({
   },
 });
 
-const INITIAL_SUBSCRIPTIONS = [
-  {
-    id: 'sub-1',
-    name: 'Spotify Premium',
-    iconPreset: 'spotify',
-    category: 'Music & Audio',
-    cost: 149.0,
-    billingCycle: 'Monthly',
-    nextRenewal: 'Nov 05, 2026',
-    icon: null,
-  },
-  {
-    id: 'sub-2',
-    name: 'Netflix Standard',
-    iconPreset: 'netflix',
-    category: 'Entertainment',
-    cost: 399.0,
-    billingCycle: 'Monthly',
-    nextRenewal: 'Nov 12, 2026',
-    icon: null,
-  },
-  {
-    id: 'sub-3',
-    name: 'GitHub Pro',
-    iconPreset: 'github',
-    category: 'Developer Tools',
-    cost: 230.0,
-    billingCycle: 'Monthly',
-    nextRenewal: 'Nov 18, 2026',
-    icon: null,
-  },
-  {
-    id: 'sub-4',
-    name: 'Google One (100GB)',
-    iconPreset: 'google-one',
-    category: 'Cloud Storage',
-    cost: 89.0,
-    billingCycle: 'Monthly',
-    nextRenewal: 'Nov 24, 2026',
-    icon: null,
-  },
-];
-
 const INITIAL_FORM_STATE = {
   name: '',
   category: 'General',
@@ -127,16 +86,6 @@ const INITIAL_FORM_STATE = {
   iconName: '',
   iconPreset: 'auto',
 };
-
-function formatRenewalDate(dateString) {
-  const [year, month, day] = dateString.split('-').map(Number);
-  const date = new Date(year, month - 1, day);
-  return date.toLocaleDateString('en-US', {
-    month: 'short',
-    day: '2-digit',
-    year: 'numeric',
-  });
-}
 
 function App() {
   const [{ user, error: storageError }, setAccount] = useState(readAccount);
@@ -184,7 +133,7 @@ function App() {
     });
   }
 
-  const [subscriptions, setSubscriptions] = useState(INITIAL_SUBSCRIPTIONS);
+  const [subscriptions, setSubscriptions] = useState(SAMPLE_SUBSCRIPTIONS);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [formData, setFormData] = useState(INITIAL_FORM_STATE);
   const [errors, setErrors] = useState({});
@@ -299,12 +248,13 @@ function App() {
     if (!validateForm()) return;
 
     const newSubscription = {
-      id: `sub-${Date.now()}`,
+      id: crypto.randomUUID(),
+      ownerId: DEMO_OWNER_ID,
       name: formData.name.trim(),
       category: formData.category.trim() || 'General',
       cost: Number(formData.cost),
       billingCycle: formData.billingCycle,
-      nextRenewal: formatRenewalDate(formData.nextRenewal),
+      nextRenewal: formData.nextRenewal,
       icon: formData.icon || null,
       iconPreset: formData.iconPreset,
     };
@@ -422,12 +372,7 @@ function App() {
               size="small"
               fullWidth
             >
-              <MenuItem value="Entertainment">Entertainment</MenuItem>
-              <MenuItem value="Music & Audio">Music & Audio</MenuItem>
-              <MenuItem value="Developer Tools">Developer Tools</MenuItem>
-              <MenuItem value="Cloud Storage">Cloud Storage</MenuItem>
-              <MenuItem value="Productivity">Productivity</MenuItem>
-              <MenuItem value="General">General</MenuItem>
+              {SUBSCRIPTION_CATEGORIES.map((category) => <MenuItem key={category} value={category}>{category}</MenuItem>)}
             </TextField>
 
             <Box sx={{ display: 'flex', gap: 1.5 }}>
@@ -458,8 +403,7 @@ function App() {
                 fullWidth
                 required
               >
-                <MenuItem value="Monthly">Monthly</MenuItem>
-                <MenuItem value="Yearly">Yearly</MenuItem>
+                {BILLING_CYCLES.map((cycle) => <MenuItem key={cycle} value={cycle}>{cycle}</MenuItem>)}
               </TextField>
             </Box>
 

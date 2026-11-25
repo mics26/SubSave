@@ -10,8 +10,9 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "lint": "oxlint src vite.config.js",
+    "lint": "oxlint src server vite.config.js",
     "test": "node --test tests/*.test.js",
+    "test:mysql": "node --test tests/mysql/subscriptions.test.js",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -19,6 +20,7 @@
     "@emotion/styled": "^11.14.1",
     "@mui/icons-material": "^9.5.0",
     "@mui/material": "^9.5.0",
+    "mysql2": "^3.24.6",
     "react": "^19.3.1",
     "react-dom": "^19.3.1"
   },
