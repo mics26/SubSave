@@ -15,7 +15,7 @@ editing, deletion, and persistence are still planned.
 ## Planned features
 
 - Highlight subscription cards in red as their renewal dates approach.
-- Edit and delete subscriptions, and persist data locally in the browser.
+- Edit and delete subscriptions, and save them per account in MySQL.
 
 See [dashboard verification](tests/dashboard.md) for the UI refresh checks.
 
@@ -24,7 +24,8 @@ See [dashboard verification](tests/dashboard.md) for the UI refresh checks.
 - React with JavaScript and JSX.
 - Vite for local development and production builds.
 - Material UI and CSS for styling, npm for dependency management, and Oxlint for linting.
-- Browser local storage for demo accounts; there is currently no backend or database.
+- Browser local storage for demo accounts. DATA-03 adds a MySQL schema and
+  server-side subscription store for the upcoming account and persistence integration.
 
 ## Prerequisites
 
@@ -64,6 +65,9 @@ by Git. Preview is for checking the production build locally.
 No environment variables, API keys, or `.env` file are needed to run the app.
 The dashboard is available without logging in. `.env.example` explains future
 configuration conventions.
+
+See the [subscription data contract](docs/subscription-data.md) to apply the
+DATA-03 migration in MySQL Workbench and run the database integration test.
 
 ## Repository layout
 

@@ -15,7 +15,7 @@ export const formatMoney = (amount) => new Intl.NumberFormat('en-PH', {
 }).format(amount);
 
 export function parseRenewalDate(value) {
-  // Support the existing form's formatted dates and ISO date-only values.
+  // Support legacy formatted dates and ISO date-only records.
   const iso = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
   const legacy = /^([A-Z][a-z]{2}) (\d{2}), (\d{4})$/.exec(value);
   if (!iso && !legacy) return null;

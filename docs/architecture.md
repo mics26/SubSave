@@ -8,9 +8,8 @@ SubSave is a browser application built with React and JavaScript using Vite.
 styles. Vite serves the app during development and builds static assets into
 `dist/` for production. Oxlint checks the JavaScript and JSX source.
 
-There are currently no network API calls, backend services,
-server authentication, or persisted subscription records. The dashboard uses
-initial sample subscriptions and supports additions in React state. Google Fonts
+The browser currently runs without an HTTP API or server authentication. The
+dashboard uses shared sample subscriptions and supports additions in React state. Google Fonts
 provides DM Sans and Bricolage Grotesque, with system fallbacks when unavailable.
 No environment variables are required to start the app.
 
@@ -59,14 +58,10 @@ The existing add form and icon upload remain in App. Adding a subscription
 updates all dashboard summaries. Editing, deletion, and subscription persistence
 remain separate work. `tests/dashboard.test.js` covers dates, sorting, and totals.
 
-## Planned data flow
+## Subscription data flow
 
-Future subscription forms will pass changes to React state, and the dashboard
-will render that state through components. Browser local storage is planned
-under DATA-01 so records can survive a refresh. These are design intentions;
-APP-01 does not implement them. Define the subscription model and date/currency
-rules in the relevant feature issues before adding persistence or calculations.
-
-Keep components and behavior tests near the features as they are introduced.
-Avoid adding routing, a state management library, or server infrastructure until
-a feature needs it.
+DATA-03 defines the shared record and MySQL schema. The subscription store scopes
+all queries to an account ID supplied by the server. AUTH-01 will establish that
+identity in a server session, DATA-01 will connect saved subscription operations,
+and APP-03 will load the account’s records into the dashboard. See the
+[subscription data contract and migration instructions](subscription-data.md).
