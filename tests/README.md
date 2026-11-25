@@ -1,8 +1,8 @@
 # Project setup verification
 
-For the account features in issue #7, see [account verification](accounts.md).
-Run `npm test` for the automated account behavior suite. The setup checks below
-are historical APP-01 checks; the current app displays the dashboard.
+See [account and subscription verification](accounts.md) for the current MySQL
+flow. Run `npm test` for the frontend unit tests. The setup checks below record
+the original APP-01 workflow.
 
 These checks verify APP-01. Run the following from a fresh clone or a separate checkout
 so an existing `node_modules/` directory cannot hide missing dependencies.

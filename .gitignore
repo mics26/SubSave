@@ -68,7 +68,6 @@ web_modules/
 # dotenv environment variable files
 .env
 .env.*
-!.env.example
 
 # parcel-bundler cache (https://parceljs.org/)
 .cache
@@ -147,3 +146,7 @@ vite.config.ts.timestamp-*
 
 # Turbo Repo
 .turbo
+
+# Spring Boot build and local MySQL login
+/backend/target/
+/backend/mysql.properties

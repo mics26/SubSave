@@ -18,11 +18,12 @@ linked, with an owner, acceptance criteria, and reviewer recorded.
 Follow the README to install dependencies and run the app. Make small changes
 within the issue's scope. Run `npm run lint` and `npm run build`, then check the
 affected behavior in a browser. Use [the setup checklist](tests/README.md) for
-changes to the project environment. Add behavior tests when implementing logic
-that needs repeatable coverage; no automated behavior test suite exists yet.
+changes to the project environment. Run `npm test` for the frontend behavior
+suite.
 
-Commit `package-lock.json` when changing dependencies. Do not commit `.env`
-files, credentials, `node_modules/`, or build output. Values exposed by Vite's
+Commit `package-lock.json` when changing dependencies. Keep local credentials
+in the ignored `backend/mysql.properties` file and keep build output and
+`node_modules/` out of Git. Values exposed by Vite's
 `VITE_` prefix are public browser configuration and must never contain secrets.
 
 ## Request a review
