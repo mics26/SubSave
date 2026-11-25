@@ -54,9 +54,10 @@ calculates summaries without mutating the subscription records:
 - The insight shows the largest subscription's actual monthly spending share;
   no historical comparison or speculative savings are fabricated.
 
-The existing add form and icon upload remain in App. Adding a subscription
-updates all dashboard summaries. Editing, deletion, and subscription persistence
-remain separate work. `tests/dashboard.test.js` covers dates, sorting, and totals.
+Add and edit share the form and icon upload in App. Adding, editing, and deleting
+a record update the in-memory list and recalculate the dashboard. The form and
+MySQL store share validation for subscription fields. `tests/dashboard.test.js`
+covers dates, sorting, and totals.
 
 ## Subscription data flow
 

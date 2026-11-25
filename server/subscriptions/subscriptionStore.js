@@ -1,11 +1,10 @@
 import { randomUUID } from 'node:crypto';
 import { PRESET_ICONS } from '../../src/subscriptions/presetIcons.js';
-import { BILLING_CYCLES, SUBSCRIPTION_CATEGORIES } from '../../src/subscriptions/subscriptionRecord.js';
+import { MAX_SUBSCRIPTION_ICON_BYTES, validateSubscriptionFields } from '../../src/subscriptions/subscriptionRecord.js';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const ISO_DATE = /^[1-9]\d{3}-\d{2}-\d{2}$/;
 const DATA_URL = /^data:image\/(?:png|jpeg);base64,([A-Za-z0-9+/]+={0,2})$/;
-const MAX_ICON_BYTES = 1024 * 1024;
+const MAX_ICON_DATA_URL_LENGTH = Math.ceil(MAX_SUBSCRIPTION_ICON_BYTES / 3) * 4 + 'data:image/jpeg;base64,'.length;
 const ICON_PRESETS = new Set(['auto', 'none', ...PRESET_ICONS.map(({ id }) => id)]);
 
 function normalizeId(value, label) {
@@ -24,33 +23,18 @@ function validateSubscription(input) {
   }
 
   const { name, category, cost, billingCycle, nextRenewal, iconPreset = 'auto', icon = null } = input;
-  const trimmedName = typeof name === 'string' ? name.trim() : '';
-  if (!trimmedName || Array.from(trimmedName).length > 120) {
-    throw new TypeError('Subscription name must be 1–120 characters.');
-  }
-  if (!SUBSCRIPTION_CATEGORIES.includes(category) || !BILLING_CYCLES.includes(billingCycle)) {
-    throw new TypeError('Choose a supported category and billing cycle.');
-  }
-  if (!Number.isFinite(cost) || cost <= 0 || cost > 9_999_999_999.99 || Number(cost.toFixed(2)) !== cost) {
-    throw new TypeError('PHP cost must be between 0.01 and 9,999,999,999.99 with up to two decimal places.');
-  }
-  if (typeof nextRenewal !== 'string' || !ISO_DATE.test(nextRenewal)) {
-    throw new TypeError('Renewal date must be a valid YYYY-MM-DD date.');
-  }
-  const date = new Date(`${nextRenewal}T00:00:00Z`);
-  if (Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== nextRenewal) {
-    throw new TypeError('Renewal date must be a valid YYYY-MM-DD date.');
-  }
+  const [fieldError] = Object.values(validateSubscriptionFields(input));
+  if (fieldError) throw new TypeError(fieldError);
   if (iconPreset === 'custom') {
-    const payload = typeof icon === 'string' && icon.length <= 1_398_127 ? DATA_URL.exec(icon)?.[1] : undefined;
-    if (!payload || payload.length % 4 !== 0 || Buffer.byteLength(payload, 'base64') > MAX_ICON_BYTES) {
+    const payload = typeof icon === 'string' && icon.length <= MAX_ICON_DATA_URL_LENGTH ? DATA_URL.exec(icon)?.[1] : undefined;
+    if (!payload || payload.length % 4 !== 0 || Buffer.byteLength(payload, 'base64') > MAX_SUBSCRIPTION_ICON_BYTES) {
       throw new TypeError('Custom icons must be PNG or JPEG data URLs up to 1 MiB.');
     }
   } else if (!ICON_PRESETS.has(iconPreset) || icon !== null) {
     throw new TypeError('Choose a supported icon preset or a custom icon.');
   }
 
-  return { name: trimmedName, category, cost, billingCycle, nextRenewal, iconPreset, icon };
+  return { name: name.trim(), category, cost, billingCycle, nextRenewal, iconPreset, icon };
 }
 
 function subscriptionValues({ name, category, cost, billingCycle, nextRenewal, iconPreset, icon }) {
