@@ -37,3 +37,20 @@ thresholds, invalid dates, and empty data.
   add-form validation, cancel/reset, and icon removal.
 - Google Fonts should load when online; with fonts blocked the system fallbacks
   should keep the layout usable. Check for browser-console errors.
+
+## Demo Mode
+
+Open SubSave using the usual [startup steps](../README.md). Sign in and add a
+test subscription that renews on December 15, 2026. Open the account menu and
+choose **Demo Mode**. Pick each date in the calendar card.
+
+| Simulated date | Expected result |
+| --- | --- |
+| December 11 | The badge is amber and reads **In 4 days**. |
+| December 12 | The badge is red and reads **In 3 days**. |
+| December 15 | The badge reads **Today** and the subscription stays in Upcoming renewals. |
+| December 16 | The badge reads **1 day overdue** and the subscription leaves Upcoming renewals. |
+
+Use **Reset to today** to restore the real date. Select **Demo Mode** again to hide
+the card. Turn it on, pick another date, and refresh. The mode should turn off and
+the saved renewal date should still be December 15.
