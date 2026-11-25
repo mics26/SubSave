@@ -8,47 +8,21 @@ SubSave is a browser application built with React and JavaScript using Vite.
 styles. Vite serves the app during development and builds static assets into
 `dist/` for production. Oxlint checks the JavaScript and JSX source.
 
-The dashboard manages subscriptions in React state. Demo mode starts with
-shared sample subscriptions. Server mode loads saved subscriptions for the
-active account and clears the list when the account changes. Google Fonts provides
+The dashboard loads saved subscriptions for the active account and clears the
+list when the account changes. Google Fonts provides
 DM Sans and Bricolage Grotesque, with system fallbacks when unavailable.
 
 ## Server accounts (AUTH-01)
 
-`npm run api` starts a Node.js HTTP server. Vite proxies `/api` requests to it.
-Migration 002 adds credentials and sessions linked to the existing MySQL account
-IDs. Passwords use scrypt with a per-account random salt. The browser receives
-an HttpOnly cookie, and MySQL stores the hash of its session token. Sessions
-expire after seven days and the server revokes them at sign-out.
+Vite proxies `/api` requests from React to Spring Boot. `AccountController` handles
+registration, login, logout, session restore, and account updates under
+`/api/auth`. `AccountStore` uses `JdbcClient` to run SQL against MySQL.
 
-The API exposes registration, login, logout, session restore, and profile
-updates under `/api/auth`. For DATA-01, use the stable `user.id` returned by
-`createAccountStore(...).currentAccount(readSessionToken(request))` on the server
-to scope the subscription store.
-
-## Demo accounts (issue #7)
-
-`src/accounts/accountService.js` handles account validation, registration,
-login/logout, profile changes, and simulated recovery. UI components in the same
-directory use the dashboard's Material UI theme. App state reads the current
-account on startup and listens for storage events to synchronize other tabs.
-
-The versioned local-storage key `subsave.accounts.v1` contains account records
-and the active account ID in a single JSON document. Passwords use PBKDF2-SHA256
-with a random per-password salt and 100,000 iterations through Web Crypto
-(requires localhost or HTTPS). Public account objects expose only ID, name,
-and email. An email/password change requires the current password. Failed writes
-are reported before the UI claims success; invalid saved data is not overwritten.
-
-Recovery codes are intentionally displayed in the UI for this simulation;
-nothing is emailed. A code lives in memory, expires after 10 minutes, and is
-discarded after five wrong attempts, successful reset, or dialog closure. Reset
-saves the new password hash and logs out so the user can try the new credentials.
-Reloading ends an in-progress recovery flow. Local storage is user-editable, so
-these flows demonstrate behavior and must not be treated as production security.
-
-`npm test` runs the account behavior tests using Node's built-in test runner.
-See [account verification](../tests/accounts.md) for manual browser checks.
+Migration 002 links credentials and sessions to MySQL account IDs. Passwords
+retain the original scrypt parameters and per-account salt. The browser
+receives an HttpOnly cookie, and MySQL stores the hash of its token. Sessions
+expire after seven days. Signing out revokes the current session, and changing
+an email address or password revokes old sessions for that account.
 
 ## Dashboard UI
 
@@ -68,14 +42,12 @@ calculates summaries without mutating the subscription records:
   no historical comparison or speculative savings are fabricated.
 
 Add and edit share the form and icon upload in App. Adding, editing, and deleting
-a record update the in-memory list and recalculate the dashboard. The form and
-MySQL store share validation for subscription fields. `tests/dashboard.test.js`
+a record update the dashboard after MySQL confirms the change. React and Spring
+validate the same subscription fields. `tests/dashboard.test.js`
 covers dates, sorting, and totals.
 
 ## Subscription data flow
 
-DATA-03 defines the shared record and MySQL schema. The subscription store scopes
-all queries to an account ID supplied by the server. AUTH-01 establishes that
-identity in a server session. DATA-01 connects the dashboard’s subscription
-operations to MySQL. See the
-[subscription data contract and migration instructions](subscription-data.md).
+`SubscriptionController` resolves the account from the session cookie and
+passes its ID to `SubscriptionStore`. Every subscription query uses that owner
+ID. See the [subscription data contract](subscription-data.md).

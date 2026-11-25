@@ -1,6 +1,6 @@
 # DATA-03 subscription data contract
 
-The team can use [the shared sample subscriptions](../src/subscriptions/sampleSubscriptions.js) in the dashboard and forms. The demo owner ID is a fixture. Signed-in accounts start with their own records.
+New accounts start with an empty subscription list.
 
 ```json
 {
@@ -28,43 +28,19 @@ The team can use [the shared sample subscriptions](../src/subscriptions/sampleSu
 
 ## Operations
 
-The [server-side store](../server/subscriptions/subscriptionStore.js) binds one authenticated account with `createSubscriptionStore(pool, accountId)`.
-
-| Operation | Result |
+| HTTP request | Result |
 | --- | --- |
-| `list()` | The account’s records sorted by renewal date and ID, or `[]`. |
-| `add(input)` | The record with its assigned ID and owner. |
-| `edit(id, input)` | The updated record, or `null` for an ID absent from this account. The input replaces the editable fields. |
-| `delete(id)` | `true` when a record is removed, or `false` for an ID absent from this account. |
+| `GET /api/subscriptions` | `{ subscriptions }`, sorted by renewal date and ID. |
+| `POST /api/subscriptions` | `201` and `{ subscription }` with the assigned ID and owner. |
+| `PUT /api/subscriptions/{id}` | `{ subscription }` with the updated fields. |
+| `DELETE /api/subscriptions/{id}` | `204` after removal. |
 
-`input` contains the editable fields from the table. It excludes `id` and `ownerId`. Invalid input is rejected before a query runs. Account filters and prepared statements apply to every operation. An ID from another account and a missing ID return the same result on edit or delete.
+Send the editable fields when adding or editing. The API rejects explicit `id`
+and `ownerId` values in the request body. The controller gets the owner from the
+session cookie, and [SubscriptionStore](../backend/src/main/java/com/subsave/SubscriptionStore.java)
+binds that owner in each SQL statement. An invalid session returns `401`. Edit
+and delete return `404` for both missing records and records owned by another
+account.
 
-Server mode uses the AUTH-01 session cookie to scope every request to the signed-in account. The API provides `GET` and `POST` at `/api/subscriptions` and `PUT` and `DELETE` at `/api/subscriptions/{id}`. Responses contain `{ subscriptions }` for a list or `{ subscription }` for an add or edit. Delete returns `204`. Requests without a valid session return `401`. An edit or delete outside the account's list returns `404`.
-
-The dashboard applies changes once MySQL confirms the request. Browser demo subscriptions live in memory. Keep the MySQL connection and credentials on the server.
-
-## View project data in MySQL Workbench
-
-Use `subsave` as the local project database. In MySQL Workbench, open the local MySQL Server 8.4 connection and select `subsave`. On first setup, create the schema with `utf8mb4` and run [migration 001](../database/migrations/001_create_accounts_and_subscriptions.sql) with that schema selected. The migration creates `accounts` and `subscriptions`.
-
-Use Workbench to inspect saved subscription records as the app is connected to MySQL:
-
-```sql
-SELECT BIN_TO_UUID(owner_id) AS owner_id, name, cost, billing_cycle, next_renewal
-FROM subsave.subscriptions
-ORDER BY next_renewal, name;
-```
-
-## Automated ownership test
-
-To rerun the automated check, apply the migration to a disposable schema and connect using a MySQL account with read and write access to its tables. Supply your credentials locally, with any special characters in the URL percent-encoded.
-
-```powershell
-$env:SUBSAVE_MYSQL_TEST_URL = 'mysql://USER:PASSWORD@127.0.0.1:3306/DISPOSABLE_SCHEMA'
-npm run test:mysql
-Remove-Item Env:SUBSAVE_MYSQL_TEST_URL
-```
-
-The test creates two temporary application accounts and verifies that each can work with its own records, cannot edit or delete the other account’s records, and cannot set a different owner when adding or editing. It cleans up those accounts and verifies the foreign key, cascade, and cost constraint.
-
-With both migrations applied, `npm run test:subscriptions` uses the same test URL to check the authenticated HTTP operations, including persistence after signing out and back in.
+See the [README](../README.md#view-saved-subscriptions-in-workbench) for the
+Workbench query.

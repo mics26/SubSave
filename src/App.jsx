@@ -34,10 +34,8 @@ import Dashboard from './dashboard/Dashboard.jsx';
 import { formatCalendarDate } from './dashboard/dashboardModel.js';
 import AccountDialog from './accounts/AccountDialog.jsx';
 import AccountPage from './accounts/AccountPage.jsx';
-import { ACCOUNT_STORAGE_KEY, createAccountService } from './accounts/accountService.js';
-import { serverAccountService } from './accounts/serverAccountService.js';
+import { serverAccountService as accountService } from './accounts/serverAccountService.js';
 import { getSubscriptionIcon, PRESET_ICONS } from './subscriptions/presetIcons.js';
-import { DEMO_OWNER_ID, SAMPLE_SUBSCRIPTIONS } from './subscriptions/sampleSubscriptions.js';
 import { serverSubscriptionService } from './subscriptions/serverSubscriptionService.js';
 import {
   BILLING_CYCLES,
@@ -45,17 +43,6 @@ import {
   SUBSCRIPTION_CATEGORIES,
   validateSubscriptionFields,
 } from './subscriptions/subscriptionRecord.js';
-
-const useServerAccounts = import.meta.env.VITE_SUBSAVE_AUTH_MODE === 'server';
-const accountService = useServerAccounts ? serverAccountService : createAccountService();
-
-function readDemoAccount() {
-  try {
-    return { user: accountService.currentAccount(), error: '' };
-  } catch (error) {
-    return { user: null, error: error.message };
-  }
-}
 
 const greenTheme = createTheme({
   palette: {
@@ -99,13 +86,12 @@ const INITIAL_FORM_STATE = {
 const CUSTOM_ICON_TYPES = ['image/png', 'image/jpeg'];
 
 function App() {
-  const [{ user, error: accountError, loading }, setAccount] = useState(() =>
-    useServerAccounts ? { user: null, error: '', loading: true } : readDemoAccount());
+  const [{ user, error: accountError, loading }, setAccount] = useState({ user: null, error: '', loading: true });
   const [dialog, setDialog] = useState(null);
   const [page, setPage] = useState('dashboard');
   const [menuAnchor, setMenuAnchor] = useState(null);
   const [notification, setNotification] = useState(null);
-  const [subscriptions, setSubscriptions] = useState(() => useServerAccounts ? [] : SAMPLE_SUBSCRIPTIONS);
+  const [subscriptions, setSubscriptions] = useState([]);
   const [subscriptionLoad, setSubscriptionLoad] = useState({ loading: false, error: null });
   const [subscriptionWrite, setSubscriptionWrite] = useState({ saving: false, error: '' });
   const [subscriptionAction, setSubscriptionAction] = useState(null);
@@ -118,7 +104,6 @@ function App() {
   const serverAccountIdRef = useRef(null);
   const subscriptionReadRef = useRef(0);
   const subscriptionWriteRef = useRef(null);
-  const canShowDashboard = !useServerAccounts || Boolean(user);
   const showAccountPage = Boolean(user && page === 'account');
   const isEditing = subscriptionAction?.type === 'edit';
   const isDeleting = subscriptionAction?.type === 'delete';
@@ -148,7 +133,7 @@ function App() {
 
   const applyAccount = useCallback((nextAccount) => {
     const accountId = nextAccount.user?.id ?? null;
-    if (useServerAccounts && serverAccountIdRef.current !== accountId) {
+    if (serverAccountIdRef.current !== accountId) {
       serverAccountIdRef.current = accountId;
       subscriptionReadRef.current += 1;
       subscriptionWriteRef.current = null;
@@ -164,9 +149,9 @@ function App() {
     setAccount(nextAccount);
   }, [loadServerSubscriptions, resetForm]);
 
-  const refreshServerAccount = useCallback(() => {
+  const refreshAccount = useCallback(() => {
     const requestId = ++accountRequestRef.current;
-    serverAccountService.currentAccount().then(
+    accountService.currentAccount().then(
       (nextUser) => {
         if (requestId === accountRequestRef.current) applyAccount({ user: nextUser, error: '' });
       },
@@ -177,28 +162,13 @@ function App() {
   }, [applyAccount]);
 
   useEffect(() => {
-    if (useServerAccounts) {
-      refreshServerAccount();
-      window.addEventListener('focus', refreshServerAccount);
-      return () => {
-        accountRequestRef.current += 1;
-        window.removeEventListener('focus', refreshServerAccount);
-      };
-    }
-    function syncStorage(event) {
-      if (event.key === ACCOUNT_STORAGE_KEY || event.key === null) {
-        applyAccount(readDemoAccount());
-        setMenuAnchor(null);
-      }
-    }
-    window.addEventListener('storage', syncStorage);
-    return () => window.removeEventListener('storage', syncStorage);
-  }, [applyAccount, refreshServerAccount]);
-
-  function refreshAccount() {
-    if (useServerAccounts) refreshServerAccount();
-    else applyAccount(readDemoAccount());
-  }
+    refreshAccount();
+    window.addEventListener('focus', refreshAccount);
+    return () => {
+      accountRequestRef.current += 1;
+      window.removeEventListener('focus', refreshAccount);
+    };
+  }, [refreshAccount]);
 
   function accountChanged(message, nextUser) {
     if (nextUser === undefined) {
@@ -211,7 +181,6 @@ function App() {
   }
 
   function closeDialog() {
-    accountService.cancelRecovery?.();
     setDialog(null);
   }
 
@@ -273,7 +242,7 @@ function App() {
     } catch (error) {
       if (subscriptionWriteRef.current !== writeId) return;
       message = error.message;
-      if (error.status === 401) refreshServerAccount();
+      if (error.status === 401) refreshAccount();
       if (error.status === 404) loadServerSubscriptions(accountId);
     } finally {
       if (subscriptionWriteRef.current === writeId) {
@@ -359,29 +328,17 @@ function App() {
     const updateRecords = (records, saved) => isEditing
       ? records.map((record) => (record.id === saved.id ? { ...record, ...saved } : record))
       : [...records, saved];
-    const editingId = isEditing ? subscriptionAction.id : null;
-    if (useServerAccounts) {
-      const request = editingId
-        ? (accountId) => serverSubscriptionService.edit(accountId, editingId, fields)
-        : (accountId) => serverSubscriptionService.add(accountId, fields);
-      void persistSubscription(request, updateRecords);
-      return;
-    }
-    const saved = { ...fields, id: editingId ?? crypto.randomUUID(), ownerId: DEMO_OWNER_ID };
-    setSubscriptions((records) => updateRecords(records, saved));
-    handleCloseModal();
+    const request = isEditing
+      ? (accountId) => serverSubscriptionService.edit(accountId, subscriptionAction.id, fields)
+      : (accountId) => serverSubscriptionService.add(accountId, fields);
+    void persistSubscription(request, updateRecords);
   };
 
   const handleDeleteSubscription = () => {
     if (!isDeleting) return;
     const { id } = subscriptionAction;
     const removeRecord = (records) => records.filter((subscription) => subscription.id !== id);
-    if (useServerAccounts) {
-      void persistSubscription((accountId) => serverSubscriptionService.delete(accountId, id), removeRecord);
-      return;
-    }
-    setSubscriptions(removeRecord);
-    setSubscriptionAction(null);
+    void persistSubscription((accountId) => serverSubscriptionService.delete(accountId, id), removeRecord);
   };
 
   return (
@@ -439,16 +396,16 @@ function App() {
       <Container component="main" maxWidth={false} sx={{ maxWidth: 1180, pt: { xs: 3, sm: 4.5 }, pb: 8 }}>
         {accountError && <Alert severity="error" sx={{ mb: 3 }} action={<Button color="inherit" onClick={refreshAccount}>Retry</Button>}>{accountError}</Alert>}
         {loading && <Typography role="status">Checking your session…</Typography>}
-        {!loading && !canShowDashboard && !accountError && <Typography>Log in or create an account to manage your subscriptions.</Typography>}
+        {!loading && !user && !accountError && <Typography>Log in or create an account to manage your subscriptions.</Typography>}
         {showAccountPage && (
           <AccountPage key={`${user.id}:${user.name}:${user.email}`} user={user} service={accountService} onChanged={accountChanged} onBack={showDashboard} />
         )}
-        {canShowDashboard && !showAccountPage && (
+        {user && !showAccountPage && (
           <>
             {subscriptionLoad.loading && <Typography role="status">Loading subscriptions…</Typography>}
             {subscriptionLoad.error && (
               <Alert severity="error" action={<Button color="inherit" onClick={() => {
-                if (subscriptionLoad.error.status === 401) refreshServerAccount();
+                if (subscriptionLoad.error.status === 401) refreshAccount();
                 else loadServerSubscriptions(user.id);
               }}>Retry</Button>}>
                 {subscriptionLoad.error.message}
@@ -465,7 +422,7 @@ function App() {
           </>
         )}
       </Container>
-      {dialog && <AccountDialog initialMode={dialog} service={accountService} onClose={closeDialog} onChanged={accountChanged} allowRecovery={!useServerAccounts} />}
+      {dialog && <AccountDialog initialMode={dialog} service={accountService} onClose={closeDialog} onChanged={accountChanged} />}
       <Snackbar open={Boolean(notification)} autoHideDuration={6000} onClose={(_, reason) => { if (reason !== 'clickaway') setNotification(null); }}>
         {notification ? <Alert severity={notification.severity} variant="filled" onClose={() => setNotification(null)} sx={{ width: '100%' }}>{notification.message}</Alert> : undefined}
       </Snackbar>
