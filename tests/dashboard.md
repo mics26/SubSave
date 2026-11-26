@@ -46,10 +46,10 @@ choose **Demo Mode**. Pick each date in the calendar card.
 
 | Simulated date | Expected result |
 | --- | --- |
-| December 11 | The badge is amber and reads **In 4 days**. |
-| December 12 | The badge is red and reads **In 3 days**. |
-| December 15 | The badge reads **Today** and the subscription stays in Upcoming renewals. |
-| December 16 | The badge reads **1 day overdue** and the subscription leaves Upcoming renewals. |
+| December 11 | The card has its regular styling and the amber **In 4 days** badge. |
+| December 12 | The card turns red and appears in **Due soon** with **In 3 days**. |
+| December 15 | The card stays in **Due soon** and **Upcoming renewals**, and its badge reads **Today**. |
+| December 16 | The card moves to **Overdue** with **1 day overdue** and leaves **Upcoming renewals**. |
 
 Use **Reset to today** to restore the real date. Select **Demo Mode** again to hide
 the card. Turn it on, pick another date, and refresh. The mode should turn off and

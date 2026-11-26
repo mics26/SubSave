@@ -20,6 +20,16 @@ function RenewalBadge({ status, date }) {
   );
 }
 
+function RenewalWarningList({ subscriptions }) {
+  return (
+    <ul className="renewal-warning-list">
+      {subscriptions.map((sub) => (
+        <li key={sub.id}><strong>{sub.name}</strong><RenewalBadge status={sub.status} /></li>
+      ))}
+    </ul>
+  );
+}
+
 function SpendChart({ categories, total }) {
   const titleId = useId();
   const circumference = 2 * Math.PI * 70;
@@ -66,7 +76,7 @@ export default function Dashboard({
     return () => window.clearTimeout(timer);
   }, [today]);
   const dashboardDate = parseRenewalDate(demoDate ?? '') ?? today;
-  const { entries, upcoming, overdueCount, totalMonthly, nextUpcoming, categories, largest } = buildDashboard(subscriptions, dashboardDate);
+  const { entries, upcoming, dueSoon, overdue, totalMonthly, nextUpcoming, categories, largest } = buildDashboard(subscriptions, dashboardDate);
 
   return (
     <div className="dashboard">
@@ -117,7 +127,8 @@ export default function Dashboard({
           <div className="dashboard-section-heading"><h2 id="subscriptions-heading">Your Subscriptions</h2><span className="active-count">{entries.length} Active</span></div>
           <div className="subscription-grid">
             {entries.map((sub) => (
-              <article key={sub.id} className="dashboard-card subscription-card" style={{ '--category-color': sub.color }}>
+              <article key={sub.id} className={`dashboard-card subscription-card${sub.warning ? ` subscription-card--${sub.warning}` : ''}`}
+                style={{ '--category-color': sub.color }}>
                 <div className="subscription-card-top">
                   <Avatar src={getSubscriptionIcon(sub)} alt="" variant="rounded" className={`subscription-avatar${sub.icon ? '' : ' subscription-avatar--preset'}`}>{sub.name.charAt(0).toUpperCase()}</Avatar>
                   <div className="subscription-details"><h3>{sub.name}</h3><span className="subscription-category">{sub.category}</span></div>
@@ -135,6 +146,20 @@ export default function Dashboard({
         </section>
 
         <aside className="dashboard-sidebar" aria-label="Spending insights and renewals">
+          <div className="dashboard-card dashboard-panel">
+            <section aria-labelledby="due-soon-heading">
+              <h2 id="due-soon-heading">Due soon</h2>
+              {dueSoon.length
+                ? <RenewalWarningList subscriptions={dueSoon} />
+                : <p className="dashboard-empty">No renewals due soon.</p>}
+            </section>
+            {overdue.length > 0 && (
+              <section className="overdue-warnings" aria-labelledby="overdue-heading">
+                <h2 id="overdue-heading">Overdue</h2>
+                <RenewalWarningList subscriptions={overdue} />
+              </section>
+            )}
+          </div>
           <SpendChart categories={categories} total={totalMonthly} />
           <section className="dashboard-card dashboard-panel" aria-labelledby="renewals-heading">
             <h2 id="renewals-heading">Upcoming renewals</h2>
@@ -145,7 +170,6 @@ export default function Dashboard({
                 ))}
               </ul>
             ) : <p className="dashboard-empty">No upcoming renewals scheduled.</p>}
-            {overdueCount > 0 && <p className="overdue-note">{overdueCount} {overdueCount === 1 ? 'renewal date has' : 'renewal dates have'} passed. Check the dates on your subscription cards.</p>}
           </section>
           {largest && totalMonthly > 0 && (
             <div className="spending-insight"><LightbulbOutlined fontSize="small" /><p><strong>{largest.name}</strong> accounts for <strong>{Math.round(largest.monthlyCost / totalMonthly * 100)}%</strong> of your monthly spend. Review your plan to see if it still fits your needs.</p></div>

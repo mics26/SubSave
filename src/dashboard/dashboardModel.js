@@ -8,6 +8,7 @@ const CATEGORY_COLORS = {
 };
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const RENEWAL_WARNING_DAYS = 3;
 const dayNumber = (date) => Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()) / 86_400_000;
 
 export const formatMoney = (amount) => new Intl.NumberFormat('en-PH', {
@@ -38,7 +39,7 @@ export function renewalStatus(days) {
   if (days < 0) return { tone: 'urgent', label: `${Math.abs(days)} ${days === -1 ? 'day' : 'days'} overdue` };
   if (days === 0) return { tone: 'urgent', label: 'Today' };
   if (days === 1) return { tone: 'urgent', label: 'Tomorrow' };
-  return { tone: days <= 3 ? 'urgent' : days <= 7 ? 'soon' : 'ok', label: `In ${days} days` };
+  return { tone: days <= RENEWAL_WARNING_DAYS ? 'urgent' : days <= 7 ? 'soon' : 'ok', label: `In ${days} days` };
 }
 
 export function buildDashboard(subscriptions, today = new Date()) {
@@ -46,19 +47,24 @@ export function buildDashboard(subscriptions, today = new Date()) {
   const entries = subscriptions.map((subscription) => {
     const date = parseRenewalDate(subscription.nextRenewal);
     const daysUntil = date ? dayNumber(date) - dayNumber(today) : null;
+    let warning = null;
+    if (daysUntil !== null && daysUntil <= RENEWAL_WARNING_DAYS) {
+      warning = daysUntil < 0 ? 'overdue' : 'due-soon';
+    }
     const monthlyCost = subscription.billingCycle === 'Yearly' ? subscription.cost / 12 : subscription.cost;
     const color = CATEGORY_COLORS[subscription.category] || CATEGORY_COLORS.General;
     const category = categories.get(subscription.category) || { name: subscription.category, cost: 0, color };
     category.cost += monthlyCost;
     categories.set(subscription.category, category);
-    return { ...subscription, date, daysUntil, monthlyCost, color, status: renewalStatus(daysUntil) };
+    return { ...subscription, date, daysUntil, monthlyCost, color, warning, status: renewalStatus(daysUntil) };
   }).sort((a, b) => (a.date?.getTime() ?? Infinity) - (b.date?.getTime() ?? Infinity));
   const totalMonthly = entries.reduce((sum, entry) => sum + entry.monthlyCost, 0);
   const upcoming = entries.filter((entry) => entry.daysUntil !== null && entry.daysUntil >= 0);
-  const overdueCount = entries.filter((entry) => entry.daysUntil !== null && entry.daysUntil < 0).length;
+  const dueSoon = upcoming.filter((entry) => entry.warning === 'due-soon');
+  const overdue = entries.filter((entry) => entry.warning === 'overdue');
   const largest = entries.reduce((biggest, entry) => !biggest || entry.monthlyCost > biggest.monthlyCost ? entry : biggest, null);
   return {
-    entries, upcoming, overdueCount, totalMonthly, largest,
+    entries, upcoming, dueSoon, overdue, totalMonthly, largest,
     nextUpcoming: upcoming[0] || null,
     categories: [...categories.values()].sort((a, b) => b.cost - a.cost),
   };

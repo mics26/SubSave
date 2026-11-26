@@ -41,7 +41,9 @@
 .active-count { font-size: 13px; font-weight: 700; color: #047857; background: #d1fae5; padding: 4px 12px; border-radius: 99px; white-space: nowrap; }
 .dashboard .subscription-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
 .subscription-card { padding: 18px; position: relative; overflow: hidden; transition: transform .18s, box-shadow .18s; }
-.subscription-card::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--category-color); }
+.subscription-card::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--renewal-accent, var(--category-color)); }
+.subscription-card--due-soon { --renewal-accent: #dc2626; background: #fffafa; border-color: #fca5a5; }
+.subscription-card--overdue { --renewal-accent: #991b1b; background: #fef2f2; border-color: #f87171; }
 .subscription-card:hover { transform: translateY(-3px); box-shadow: 0 2px 4px rgb(15 23 42 / 6%), 0 12px 28px rgb(15 23 42 / 9%); }
 .subscription-card-top { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .subscription-card .subscription-avatar { width: 46px; height: 46px; border-radius: 13px; font-family: var(--display-font); font-weight: 600; font-size: 20px; background: color-mix(in srgb, var(--category-color) 12%, white); color: var(--category-color); border: 1px solid color-mix(in srgb, var(--category-color) 22%, white); }
@@ -82,7 +84,9 @@
 .renewal-timeline li::before { content: ''; position: absolute; left: 0; top: 3px; width: 16px; height: 16px; border-radius: 50%; background: white; border: 3px solid var(--category-color); }
 .renewal-timeline strong { font-size: 14px; font-weight: 600; display: block; margin-bottom: 3px; }
 .renewal-timeline span { font-size: 12px; color: var(--dashboard-muted); line-height: 1.6; display: block; }
-.overdue-note { border-top: 1px solid var(--dashboard-line); margin-top: 18px; padding-top: 14px; color: #92400e; font-size: 12px; line-height: 1.6; }
+.renewal-warning-list { list-style: none; display: grid; gap: 10px; }
+.renewal-warning-list li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 10px; font-size: 13px; overflow-wrap: anywhere; }
+.overdue-warnings { border-top: 1px solid var(--dashboard-line); margin-top: 16px; padding-top: 16px; }
 .spending-insight { display: flex; align-items: flex-start; gap: 9px; background: linear-gradient(135deg, #ecfdf5, white); border: 1px solid #d1fae5; padding: 16px 18px; border-radius: 16px; font-size: 13px; color: #064e3b; line-height: 1.65; overflow-wrap: anywhere; }
 .spending-insight svg { color: #059669; flex-shrink: 0; margin-top: 2px; }
 .spending-insight strong { color: #047857; }
