@@ -13,7 +13,6 @@ body {
 .app-toolbar.MuiToolbar-root { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px; min-height: 76px; }
 .app-logo { display: inline-flex; align-items: center; gap: 10px; background: none; border: 0; font: inherit; cursor: pointer; padding: 0; border-radius: 10px; }
 .app-logo-mark { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; color: white; background: linear-gradient(135deg, #10b981, #047857); box-shadow: 0 4px 10px rgb(5 150 105 / 28%); }
-.app-auth-actions .MuiButton-root { border-radius: 10px; white-space: nowrap; }
 .app-logo:focus-visible { outline: 3px solid #059669; outline-offset: 5px; }
 
 @media (max-width: 900px) {
@@ -25,5 +24,4 @@ body {
   .app-logo { gap: 6px; }
   .app-logo .MuiTypography-root { font-size: 20px; }
   .app-logo-mark { width: 30px; height: 30px; }
-  .app-auth-actions .MuiButton-root { font-size: 12px; min-width: 0; padding: 6px 8px; }
 }

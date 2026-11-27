@@ -36,6 +36,7 @@ import Dashboard from './dashboard/Dashboard.jsx';
 import { formatCalendarDate } from './dashboard/dashboardModel.js';
 import AccountDialog from './accounts/AccountDialog.jsx';
 import AccountPage from './accounts/AccountPage.jsx';
+import Welcome from './accounts/Welcome.jsx';
 import { serverAccountService as accountService } from './accounts/serverAccountService.js';
 import { getSubscriptionIcon, PRESET_ICONS } from './subscriptions/presetIcons.js';
 import { serverSubscriptionService } from './subscriptions/serverSubscriptionService.js';
@@ -358,7 +359,7 @@ function App() {
       >
         <Container maxWidth={false} sx={{ maxWidth: 1180 }}>
           <Toolbar disableGutters className="app-toolbar">
-            <Box component="button" className="app-logo" onClick={showDashboard} aria-label="SubSave dashboard">
+            <Box component="button" className="app-logo" onClick={showDashboard} aria-label={user ? 'SubSave dashboard' : 'SubSave home'}>
               <Box className="app-logo-mark"><AutorenewRounded sx={{ fontSize: 22 }} /></Box>
               <Typography
                 variant="h6"
@@ -369,7 +370,7 @@ function App() {
               </Typography>
             </Box>
 
-            {user ? (
+            {user && (
               <Button
                 id="account-menu-button" aria-label="Open account menu" aria-controls={menuAnchor ? 'account-menu' : undefined}
                 aria-haspopup="true" aria-expanded={Boolean(menuAnchor)} onClick={(event) => setMenuAnchor(event.currentTarget)}
@@ -378,11 +379,6 @@ function App() {
                 <Avatar sx={{ width: 32, height: 32, bgcolor: 'primary.light', color: 'primary.dark', fontSize: 15 }}>{user.name.charAt(0).toUpperCase()}</Avatar>
                 <Box component="span" sx={{ display: { xs: 'none', sm: 'block' }, maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user.name}</Box>
               </Button>
-            ) : !loading && (
-              <Box className="app-auth-actions" sx={{ display: 'flex', gap: 0.5 }}>
-                <Button onClick={() => setDialog('login')}>Log in</Button>
-                <Button variant="contained" disableElevation onClick={() => setDialog('register')}>Create account</Button>
-              </Box>
             )}
           </Toolbar>
         </Container>
@@ -410,7 +406,7 @@ function App() {
       <Container component="main" maxWidth={false} sx={{ maxWidth: 1180, pt: { xs: 3, sm: 4.5 }, pb: 8 }}>
         {accountError && <Alert severity="error" sx={{ mb: 3 }} action={<Button color="inherit" onClick={refreshAccount}>Retry</Button>}>{accountError}</Alert>}
         {loading && <Typography role="status">Checking your session…</Typography>}
-        {!loading && !user && !accountError && <Typography>Log in or create an account to manage your subscriptions.</Typography>}
+        {!loading && !user && <Welcome onLogin={() => setDialog('login')} onRegister={() => setDialog('register')} />}
         {showAccountPage && (
           <AccountPage key={`${user.id}:${user.name}:${user.email}`} user={user} service={accountService} onChanged={accountChanged} onBack={showDashboard} />
         )}

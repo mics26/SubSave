@@ -13,3 +13,10 @@ Start SubSave using the [README](../README.md). Use two made-up email addresses.
 5. Open **Your account** and change the display name. Try changing the email
    or password with an incorrect current password, then with the correct one.
    Sign out and test the updated credentials.
+
+## Signed-out welcome
+
+On desktop and at 320px wide, open SubSave while signed out. Verify **Log in**
+and **Create account** open their respective dialogs. Sign in, refresh, and
+confirm the dashboard loads your saved subscriptions. Sign out and refresh
+again. The welcome screen should show both actions and hide all dashboard data.
