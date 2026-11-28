@@ -12,12 +12,10 @@ import {
   DialogContent,
   DialogContentText,
   DialogTitle,
-  FormHelperText,
   ListItemIcon,
   Menu,
   MenuItem,
   Snackbar,
-  TextField,
   ThemeProvider,
   Toolbar,
   Typography,
@@ -27,25 +25,16 @@ import {
   AutorenewRounded,
   CalendarMonthOutlined,
   CheckRounded,
-  CloudUploadOutlined,
-  DeleteOutlineRounded,
   LogoutRounded,
   PersonOutlineRounded,
 } from '@mui/icons-material';
 import Dashboard from './dashboard/Dashboard.jsx';
-import { formatCalendarDate } from './dashboard/dashboardModel.js';
 import AccountDialog from './accounts/AccountDialog.jsx';
 import AccountPage from './accounts/AccountPage.jsx';
 import Welcome from './accounts/Welcome.jsx';
 import { serverAccountService as accountService } from './accounts/serverAccountService.js';
-import { getSubscriptionIcon, PRESET_ICONS } from './subscriptions/presetIcons.js';
 import { serverSubscriptionService } from './subscriptions/serverSubscriptionService.js';
-import {
-  BILLING_CYCLES,
-  MAX_SUBSCRIPTION_ICON_BYTES,
-  SUBSCRIPTION_CATEGORIES,
-  validateSubscriptionFields,
-} from './subscriptions/subscriptionRecord.js';
+import SubscriptionEditor from './subscriptions/SubscriptionEditor.jsx';
 
 const greenTheme = createTheme({
   palette: {
@@ -76,18 +65,6 @@ const greenTheme = createTheme({
   },
 });
 
-const INITIAL_FORM_STATE = {
-  name: '',
-  category: 'General',
-  cost: '',
-  billingCycle: 'Monthly',
-  nextRenewal: '',
-  icon: null,
-  iconName: '',
-  iconPreset: 'auto',
-};
-const CUSTOM_ICON_TYPES = ['image/png', 'image/jpeg'];
-
 function App() {
   const [{ user, error: accountError, loading }, setAccount] = useState({ user: null, error: '', loading: true });
   const [dialog, setDialog] = useState(null);
@@ -99,26 +76,12 @@ function App() {
   const [subscriptionLoad, setSubscriptionLoad] = useState({ loading: false, error: null });
   const [subscriptionWrite, setSubscriptionWrite] = useState({ saving: false, error: '' });
   const [subscriptionAction, setSubscriptionAction] = useState(null);
-  const [formData, setFormData] = useState(INITIAL_FORM_STATE);
-  const [errors, setErrors] = useState({});
-  const [isReadingIcon, setIsReadingIcon] = useState(false);
-  const fileInputRef = useRef(null);
-  const iconReadRef = useRef(0);
   const accountRequestRef = useRef(0);
   const serverAccountIdRef = useRef(null);
   const subscriptionReadRef = useRef(0);
   const subscriptionWriteRef = useRef(null);
   const showAccountPage = Boolean(user && page === 'account');
-  const isEditing = subscriptionAction?.type === 'edit';
   const isDeleting = subscriptionAction?.type === 'delete';
-
-  const resetForm = useCallback((values = INITIAL_FORM_STATE) => {
-    iconReadRef.current += 1;
-    setIsReadingIcon(false);
-    setFormData(values);
-    setErrors({});
-    if (fileInputRef.current) fileInputRef.current.value = '';
-  }, []);
 
   const loadServerSubscriptions = useCallback((accountId) => {
     const readId = ++subscriptionReadRef.current;
@@ -145,14 +108,13 @@ function App() {
       setDemoDate(null);
       setSubscriptionWrite({ saving: false, error: '' });
       setSubscriptionAction(null);
-      resetForm();
       setMenuAnchor(null);
       setPage('dashboard');
       if (accountId) loadServerSubscriptions(accountId);
       else setSubscriptionLoad({ loading: false, error: null });
     }
     setAccount(nextAccount);
-  }, [loadServerSubscriptions, resetForm]);
+  }, [loadServerSubscriptions]);
 
   const refreshAccount = useCallback(() => {
     const requestId = ++accountRequestRef.current;
@@ -194,7 +156,6 @@ function App() {
     try {
       await accountService.logout();
       accountChanged('You’re logged out.', null);
-      setPage('dashboard');
     } catch (error) {
       setNotification({ severity: 'error', message: error.message });
     }
@@ -205,32 +166,14 @@ function App() {
     window.scrollTo(0, 0);
   }
 
-  const handleOpenModal = (subscription) => {
+  function openSubscriptionAction(action) {
     setSubscriptionWrite({ saving: false, error: '' });
-    if (!subscription) {
-      resetForm();
-      setSubscriptionAction({ type: 'add' });
-      return;
-    }
+    setSubscriptionAction(action);
+  }
 
-    const { id, name, category, cost, billingCycle, date, icon, iconPreset } = subscription;
-    resetForm({
-      ...INITIAL_FORM_STATE, name, category, cost: String(cost), billingCycle,
-      nextRenewal: date ? formatCalendarDate(date) : '',
-      icon: icon ?? null, iconPreset: iconPreset ?? (icon ? 'custom' : 'auto'),
-    });
-    setSubscriptionAction({ type: 'edit', id });
-  };
-
-  const handleCloseModal = () => {
-    resetForm();
+  function closeSubscriptionAction() {
     setSubscriptionAction(null);
-  };
-
-  const handleOpenDeleteModal = ({ id, name }) => {
-    setSubscriptionWrite({ saving: false, error: '' });
-    setSubscriptionAction({ type: 'delete', id, name });
-  };
+  }
 
   async function persistSubscription(request, updateRecords) {
     const accountId = serverAccountIdRef.current;
@@ -243,7 +186,7 @@ function App() {
       const record = await request(accountId);
       if (subscriptionWriteRef.current !== writeId) return;
       setSubscriptions((records) => updateRecords(records, record));
-      handleCloseModal();
+      closeSubscriptionAction();
     } catch (error) {
       if (subscriptionWriteRef.current !== writeId) return;
       message = error.message;
@@ -257,87 +200,20 @@ function App() {
     }
   }
 
-  const handleInputChange = (e) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
-    if (errors[name]) {
-      setErrors((prev) => ({ ...prev, [name]: '' }));
+  function handleSaveSubscription(fields) {
+    const subscription = subscriptionAction.subscription;
+    if (subscription) {
+      void persistSubscription(
+        (accountId) => serverSubscriptionService.edit(accountId, subscription.id, fields),
+        (records, saved) => records.map((record) => record.id === saved.id ? { ...record, ...saved } : record),
+      );
+    } else {
+      void persistSubscription(
+        (accountId) => serverSubscriptionService.add(accountId, fields),
+        (records, saved) => [...records, saved],
+      );
     }
-  };
-
-  const handleIconUpload = (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const readId = ++iconReadRef.current;
-
-    let uploadError = '';
-    if (!file.size || !CUSTOM_ICON_TYPES.includes(file.type)) {
-      uploadError = 'Choose a non-empty PNG or JPEG image.';
-    } else if (file.size > MAX_SUBSCRIPTION_ICON_BYTES) {
-      uploadError = 'Choose an image that is 1 MiB or smaller.';
-    }
-    setErrors((prev) => ({ ...prev, icon: uploadError }));
-    setIsReadingIcon(!uploadError);
-    if (uploadError) {
-      e.target.value = '';
-      return;
-    }
-
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (readId !== iconReadRef.current) return;
-      setIsReadingIcon(false);
-      setFormData((prev) => ({
-        ...prev,
-        icon: reader.result,
-        iconName: file.name,
-        iconPreset: 'custom',
-      }));
-    };
-    reader.onerror = () => {
-      if (readId === iconReadRef.current) {
-        setIsReadingIcon(false);
-        if (fileInputRef.current) fileInputRef.current.value = '';
-        setErrors((prev) => ({ ...prev, icon: 'This image could not be read. Choose another file.' }));
-      }
-    };
-    reader.readAsDataURL(file);
-  };
-
-  const handlePresetIcon = (iconPreset) => {
-    iconReadRef.current += 1;
-    setIsReadingIcon(false);
-    setFormData((prev) => ({ ...prev, iconPreset, icon: null, iconName: '' }));
-    setErrors((prev) => ({ ...prev, icon: '' }));
-    if (fileInputRef.current) fileInputRef.current.value = '';
-  };
-
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    if (isReadingIcon || subscriptionWriteRef.current) return;
-
-    const fields = {
-      name: formData.name.trim(),
-      category: formData.category,
-      cost: Number(formData.cost),
-      billingCycle: formData.billingCycle,
-      nextRenewal: formData.nextRenewal,
-      icon: formData.icon || null,
-      iconPreset: formData.iconPreset,
-    };
-    const validationErrors = validateSubscriptionFields(fields);
-    if (errors.icon) validationErrors.icon = errors.icon;
-    setErrors(validationErrors);
-    if (Object.keys(validationErrors).length) return;
-
-    const updateRecords = (records, saved) => isEditing
-      ? records.map((record) => (record.id === saved.id ? { ...record, ...saved } : record))
-      : [...records, saved];
-    const request = isEditing
-      ? (accountId) => serverSubscriptionService.edit(accountId, subscriptionAction.id, fields)
-      : (accountId) => serverSubscriptionService.add(accountId, fields);
-    void persistSubscription(request, updateRecords);
-  };
+  }
 
   const handleDeleteSubscription = () => {
     if (!isDeleting) return;
@@ -426,9 +302,9 @@ function App() {
                 subscriptions={subscriptions}
                 demoDate={demoDate}
                 onDemoDateChange={setDemoDate}
-                onAddSubscription={() => handleOpenModal()}
-                onEditSubscription={handleOpenModal}
-                onDeleteSubscription={handleOpenDeleteModal}
+                onAddSubscription={() => openSubscriptionAction({ type: 'editor' })}
+                onEditSubscription={(subscription) => openSubscriptionAction({ type: 'editor', subscription })}
+                onDeleteSubscription={({ id, name }) => openSubscriptionAction({ type: 'delete', id, name })}
               />
             )}
           </>
@@ -439,205 +315,20 @@ function App() {
         {notification ? <Alert severity={notification.severity} variant="filled" onClose={() => setNotification(null)} sx={{ width: '100%' }}>{notification.message}</Alert> : undefined}
       </Snackbar>
 
-      <Dialog
-        open={subscriptionAction !== null && !isDeleting}
-        onClose={subscriptionWrite.saving ? undefined : handleCloseModal}
-        aria-labelledby="subscription-form-title"
-        fullWidth
-        maxWidth="xs"
-      >
-        <DialogTitle id="subscription-form-title" sx={{ fontWeight: 700, pb: 1 }}>
-          {isEditing ? 'Edit Subscription' : 'Add New Subscription'}
-        </DialogTitle>
-        <Box component="form" onSubmit={handleSubmit} noValidate aria-busy={subscriptionWrite.saving}>
-          <DialogContent
-            sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}
-          >
-            {subscriptionWrite.error && <Alert severity="error">{subscriptionWrite.error}</Alert>}
-            <TextField
-              label="Subscription Name"
-              name="name"
-              placeholder="e.g., Canva Pro"
-              value={formData.name}
-              disabled={subscriptionWrite.saving}
-              onChange={handleInputChange}
-              error={Boolean(errors.name)}
-              helperText={errors.name}
-              size="small"
-              fullWidth
-              required
-            />
-
-            <TextField
-              label="Category"
-              name="category"
-              select
-              value={formData.category}
-              disabled={subscriptionWrite.saving}
-              onChange={handleInputChange}
-              error={Boolean(errors.category)}
-              helperText={errors.category}
-              size="small"
-              fullWidth
-            >
-              {SUBSCRIPTION_CATEGORIES.map((category) => <MenuItem key={category} value={category}>{category}</MenuItem>)}
-            </TextField>
-
-            <Box sx={{ display: 'flex', gap: 1.5 }}>
-              <TextField
-                label="Cost (₱)"
-                name="cost"
-                type="number"
-                placeholder="0.00"
-                value={formData.cost}
-                disabled={subscriptionWrite.saving}
-                onChange={handleInputChange}
-                error={Boolean(errors.cost)}
-                helperText={errors.cost}
-                size="small"
-                fullWidth
-                required
-                slotProps={{ htmlInput: { min: '0.01', step: '0.01' } }}
-              />
-
-              <TextField
-                label="Billing Cycle"
-                name="billingCycle"
-                select
-                value={formData.billingCycle}
-                disabled={subscriptionWrite.saving}
-                onChange={handleInputChange}
-                error={Boolean(errors.billingCycle)}
-                helperText={errors.billingCycle}
-                size="small"
-                fullWidth
-                required
-              >
-                {BILLING_CYCLES.map((cycle) => <MenuItem key={cycle} value={cycle}>{cycle}</MenuItem>)}
-              </TextField>
-            </Box>
-
-            <TextField
-              label="Next Renewal Date"
-              name="nextRenewal"
-              type="date"
-              value={formData.nextRenewal}
-              disabled={subscriptionWrite.saving}
-              onChange={handleInputChange}
-              error={Boolean(errors.nextRenewal)}
-              helperText={errors.nextRenewal}
-              size="small"
-              fullWidth
-              required
-              slotProps={{ inputLabel: { shrink: true } }}
-            />
-
-            <Box>
-              <Typography id="subscription-icon-label" variant="body2" fontWeight={600} sx={{ mb: 1 }}>Subscription icon</Typography>
-              <Box role="group" aria-labelledby="subscription-icon-label" sx={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 1 }}>
-                {[{ id: 'auto', label: 'Automatic' }, ...PRESET_ICONS, { id: 'none', label: 'No icon' }].map((preset) => (
-                  <Button key={preset.id} type="button" aria-pressed={formData.iconPreset === preset.id}
-                    onClick={() => handlePresetIcon(preset.id)} variant="outlined" size="small"
-                    disabled={subscriptionWrite.saving}
-                    startIcon={preset.src ? <Box component="img" src={preset.src} alt="" sx={{ width: 20, height: 20, objectFit: 'contain' }} /> : undefined}
-                    sx={{ justifyContent: 'flex-start', px: 1.5, py: 1, borderRadius: 2, color: formData.iconPreset === preset.id ? 'primary.dark' : 'text.secondary',
-                      borderColor: formData.iconPreset === preset.id ? 'primary.main' : 'divider', bgcolor: formData.iconPreset === preset.id ? 'primary.light' : 'transparent' }}>
-                    {preset.label}
-                  </Button>
-                ))}
-              </Box>
-              <FormHelperText sx={{ mx: 0, mt: 1 }}>Automatic matches the service name. You can also choose a preset or upload your own.</FormHelperText>
-            </Box>
-
-            {/* Custom uploads override automatic matching and selected presets. */}
-            <Box>
-              <Typography
-                variant="caption"
-                color="text.secondary"
-                sx={{ display: 'block', mb: 0.75, fontWeight: 500 }}
-              >
-                Custom icon (optional, PNG or JPEG up to 1 MiB)
-              </Typography>
-
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                <Avatar
-                  src={getSubscriptionIcon(formData)}
-                  alt="Selected subscription icon"
-                  variant="rounded"
-                  sx={{
-                    width: 42,
-                    height: 42,
-                    bgcolor: 'primary.light',
-                    color: 'primary.dark',
-                    fontWeight: 700,
-                    border: '1px solid #a7f3d0',
-                    '& img': { objectFit: 'contain', p: formData.icon ? 0 : 1 },
-                  }}
-                >
-                  {formData.name ? formData.name.charAt(0).toUpperCase() : '?'}
-                </Avatar>
-
-                <Button
-                  component="label"
-                  variant="outlined"
-                  size="small"
-                  disabled={subscriptionWrite.saving}
-                  startIcon={<CloudUploadOutlined />}
-                  sx={{ flexGrow: 1 }}
-                >
-                  {formData.icon ? 'Change Icon' : 'Upload PNG/JPEG'}
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    disabled={subscriptionWrite.saving}
-                    accept={CUSTOM_ICON_TYPES.join(',')}
-                    hidden
-                    onChange={handleIconUpload}
-                  />
-                </Button>
-
-                {(getSubscriptionIcon(formData) || errors.icon || isReadingIcon) && (
-                  <Button
-                    color="error"
-                    size="small"
-                    disabled={subscriptionWrite.saving}
-                    onClick={() => handlePresetIcon('none')}
-                    sx={{ minWidth: 'auto', p: 0.75 }}
-                    aria-label="Remove selected icon"
-                  >
-                    <DeleteOutlineRounded fontSize="small" />
-                  </Button>
-                )}
-              </Box>
-
-              {formData.iconName && !errors.icon && (
-                <FormHelperText sx={{ color: 'primary.dark', mt: 0.5 }}>
-                  Selected: {formData.iconName}
-                </FormHelperText>
-              )}
-
-              {errors.icon && (
-                <FormHelperText error sx={{ mt: 0.5 }}>
-                  {errors.icon}
-                </FormHelperText>
-              )}
-            </Box>
-          </DialogContent>
-
-          <DialogActions sx={{ px: 3, pb: 2.5 }}>
-            <Button onClick={handleCloseModal} disabled={subscriptionWrite.saving} sx={{ color: 'text.secondary' }}>
-              Cancel
-            </Button>
-            <Button type="submit" variant="contained" disableElevation disabled={isReadingIcon || subscriptionWrite.saving}>
-              {subscriptionWrite.saving ? 'Saving…' : 'Save Subscription'}
-            </Button>
-          </DialogActions>
-        </Box>
-      </Dialog>
+      {subscriptionAction?.type === 'editor' && (
+        <SubscriptionEditor
+          key={subscriptionAction.subscription?.id ?? 'new'}
+          subscription={subscriptionAction.subscription}
+          saving={subscriptionWrite.saving}
+          saveError={subscriptionWrite.error}
+          onClose={closeSubscriptionAction}
+          onSave={handleSaveSubscription}
+        />
+      )}
 
       <Dialog
         open={isDeleting}
-        onClose={subscriptionWrite.saving ? undefined : handleCloseModal}
+        onClose={subscriptionWrite.saving ? undefined : closeSubscriptionAction}
         aria-labelledby="delete-subscription-title"
         aria-describedby="delete-subscription-description"
       >
@@ -649,7 +340,7 @@ function App() {
           {subscriptionWrite.error && <Alert severity="error" sx={{ mt: 2 }}>{subscriptionWrite.error}</Alert>}
         </DialogContent>
         <DialogActions>
-          <Button autoFocus onClick={handleCloseModal} disabled={subscriptionWrite.saving}>Cancel</Button>
+          <Button autoFocus onClick={closeSubscriptionAction} disabled={subscriptionWrite.saving}>Cancel</Button>
           <Button color="error" variant="contained" onClick={handleDeleteSubscription} disabled={subscriptionWrite.saving}>
             {subscriptionWrite.saving ? 'Deleting…' : 'Delete Subscription'}
           </Button>
