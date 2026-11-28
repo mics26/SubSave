@@ -2,6 +2,8 @@
 
 Track subscriptions, spending, and renewal dates. React sends requests to Spring Boot. Spring checks the session cookie to identify the account, then reads and writes that account’s data in MySQL using `JdbcClient`.
 
+[Team contributions and presentation roles](docs/member-contributions.md)
+
 ## Run locally
 
 Requires Java 21, Node.js 24, npm 11+, and MySQL at `localhost:3306`.

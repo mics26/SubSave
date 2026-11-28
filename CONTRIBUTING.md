@@ -31,8 +31,8 @@ in the ignored `backend/mysql.properties` file and keep build output and
 Use a descriptive commit message, for example
 `chore: initialize React project for APP-01`.
 Open a pull request against `main` describing the problem, change, issue number,
-and verification results. Reference `Refs #1` while APP-01 sign-offs are pending;
-avoid an automatic closing keyword until all acceptance criteria are verified.
+and verification results. Wait until the acceptance criteria are verified before
+using a closing keyword.
 
 Ask another team member to review the pull request and record their findings.
 An author must not count their own checks as teammate review. Resolve findings
@@ -41,8 +41,7 @@ reviews where the repository's GitHub plan supports that configuration.
 
 ## Mark work complete
 
-Record verification evidence in the pull request or linked issue. For APP-01,
-also complete [the setup sign-offs](docs/project-setup-verification.md).
+Record verification evidence in the pull request or linked issue.
 Close the issue and move the Trello card to Done after acceptance checks and
 review are complete. Do not treat documentation of a planned feature as evidence
 that the feature is implemented.

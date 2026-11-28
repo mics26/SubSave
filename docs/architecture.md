@@ -41,13 +41,13 @@ calculates summaries without mutating the subscription records:
 - The insight shows the largest subscription's actual monthly spending share;
   no historical comparison or speculative savings are fabricated.
 
-Add and edit share the form and icon upload in App. Adding, editing, and deleting
-a record update the dashboard after MySQL confirms the change. React and Spring
-validate the same subscription fields. `tests/dashboard.test.js`
-covers dates, sorting, and totals.
+Add and edit share the form and icon upload in `src/subscriptions/SubscriptionEditor.jsx`.
+`App` saves changes and updates the dashboard after MySQL confirms them. React
+and Spring validate the same subscription fields. `tests/dashboard.test.js` covers
+dates, sorting, and totals.
 
 ## Subscription data flow
 
 `SubscriptionController` resolves the account from the session cookie and
 passes its ID to `SubscriptionStore`. Every subscription query uses that owner
-ID. See the [subscription data contract](subscription-data.md).
+ID. The tables are defined in the [database migrations](../database/migrations).
